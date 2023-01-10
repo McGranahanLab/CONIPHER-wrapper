@@ -3,25 +3,25 @@
 ################################################################################## Input parameters
 ###################################################################################################
 
-patient="LTXTOY003"
-scriptDir=`pwd`"/"
-inputTSV=${scriptDir}"/toy_tsv.tsv"
-outDir=${scriptDir}"/"${patient}
+case_id="CRUKTOY001"
+scriptDir=`pwd`"/src/"
+inputTSV=`pwd`"/data/input_tsv.tsv"
+outDir=`pwd`"/data/results"
 
-
-############################################################### Running clustering and treebuilding
+###################################################################### Running treebuilding wrapper
 ###################################################################################################
-source activate pyclone_2
 
-scDir=${outDir}"/Clustering/"
+source activate conipher
+
 treeDir=${outDir}"/TreeBuilding/"
 
-mkdir -p ${scDir}
 mkdir -p ${treeDir}
 
-Rscript ${scriptDir}run_treebuilding.R --input_tsv ${inputTSV} --out_dir ${treeDir} --script_dir ${scriptDir} --prefix LTX
-
-# conda deactivate
+Rscript ${scriptDir}run_treebuilding.R \
+--input_tsv ${inputTSV} \
+--out_dir ${treeDir} \
+--script_dir ${scriptDir} \
+--prefix CRUK
 
 
 ############################################################################################### End
