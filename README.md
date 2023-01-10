@@ -4,9 +4,10 @@
 
 This is a README detailing how to run both mutation clustering and phylogenetic tree building using CONIPHER (COrrecting Noise In PHylogenetic Evaluation and Reconstruction).
 
-### Running CONIPHER from a conda environment
+--- 
+### Setup
 
-To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. Our R package for running CONIPHER tree building on one input tumour is available for installation at https://github.com/McGranahanLab/CONIPHER. Please refer to the CONIPHER tree building github and our manuscript here for further details of the method.
+To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. Our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript for further details of the method.
 
 1. Create a conda environment with correct libaries installed
 ```
@@ -33,9 +34,9 @@ install.packages("gdata")
 install.packages("future")
 install.packages("optparse")
 install.packages("bootstrap")
-install.packages("TeachingDemos")
-devtools::install_version("NORMT3", version = "1.0.4")
-devtools::install_github("genome/bmm")
+#install.packages("TeachingDemos")
+#devtools::install_version("NORMT3", version = "1.0.4")
+#devtools::install_github("genome/bmm")
 BiocManager::install("copynumber")
 devtools::install_version("sequenza", version = "2.1.2")
 install.packages("coin")
@@ -53,7 +54,12 @@ q()
 conda deactivate
 ```
 
-5. Finally, run a wrapper bash script. For example,
+--- 
+
+### Quickstart
+#### Running CONIPHER clustering + tree building
+
+We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, run the following command in your terminal:
 
 ```
 sh 0_runningClusteringTreeBuilding.sh
