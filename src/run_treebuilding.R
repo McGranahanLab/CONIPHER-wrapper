@@ -136,6 +136,8 @@ if(!is.na(sample_pyclone_tree$graph_pyclone[1]))
   clusterInfoDF <- clusterInfoDF %>% full_join(data.frame(sample_pyclone_tree$nested_pyclone$ccf_ci_upper, stringsAsFactors = FALSE) %>% mutate(clusterID = rownames(.)) %>% pivot_longer(!clusterID, names_to = "Region", values_to = "CCF_CI_high"), by = c("clusterID", "Region"))
   clusterInfoDF <- clusterInfoDF %>% full_join(data.frame(sample_pyclone_tree$clonality_out$clonality_table_corrected, stringsAsFactors = FALSE) %>% mutate(clusterID = rownames(.)) %>% pivot_longer(!clusterID, names_to = "Region", values_to = "clonality"), by = c("clusterID", "Region"))
   clusterInfoDF <- clusterInfoDF %>% full_join(data.frame(sample_pyclone_tree$clone_proportion_out$clone_proportion_table, stringsAsFactors = FALSE) %>% mutate(clusterID = rownames(.)) %>% pivot_longer(!clusterID, names_to = "Region", values_to = "clone_proportions_default"), by = c("clusterID", "Region"))
+  
+  clusterInfoDF <- clusterInfoDF %>% dplyr::rename(SAMPLE = Region)
   write.table(clusterInfoDF, file = clusterInfoFile, row.names = FALSE, quote = FALSE, sep = "\t")
 
   ### writing clone proportion information
