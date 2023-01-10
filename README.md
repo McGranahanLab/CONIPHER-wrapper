@@ -13,7 +13,7 @@ git clone https://github.com/McGranahanLab/CONIPHER-wrapper/
 cd CONIPHER-wrapper
 ```
 
-To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. Our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript for further details of the method.
+To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. NOTE: our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript (XXX) for further details of the method.
 
 1. Create a conda environment with correct libaries installed
 ```
