@@ -25,7 +25,6 @@ Rscript ${scriptDir}run_clustering.R \
 --script_dir ${scriptDir} \
 --input_tsv ${inputTSV} \
 --working_dir ${clusteringDir} \
---pyclone_version sc_nosciclone \
 --nProcs 1
 
 Rscript ${scriptDir}run_treebuilding.R \
