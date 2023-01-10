@@ -2,7 +2,7 @@
 
 ## CONIPHER clustering and tree building wrapper
 
-This is a README detailing how to run both mutation clustering and phylogenetic tree building using CONIPHER (COrrecting Noise In PHylogenetic Evaluation and Reconstruction).
+This is a README detailing how to run both mutation clustering and phylogenetic tree building using CONIPHER (COrrecting Noise In PHylogenetic Evaluation and Reconstruction). NOTE: our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript (XXX) for further details of the method.
 
 --- 
 ### Setup
@@ -13,9 +13,14 @@ git clone https://github.com/McGranahanLab/CONIPHER-wrapper/
 cd CONIPHER-wrapper
 ```
 
-To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. NOTE: our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript (XXX) for further details of the method.
+#### Create CONIPHER conda environment
+To be able to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. 
 
-1. Create a conda environment with correct libaries installed
+To create the conda environment to successfully install and run CONIPHER clustering and tree building, please manually build the conda environment using the instructions below.
+
+On your terminal, ensure you are located in the `CONIPHER-wrapper` directory.
+
+1. Create the conda environment with the following libaries installed
 ```
 conda create -n conipher -c bioconda -c conda-forge pyclone r-base=3.6.1 r-essentials r-tidyverse r-cowplot r-ggpubr r-fst r-biocmanager r-devtools r-seqminer
 ```
@@ -67,3 +72,13 @@ We provide a wrapper bash script to run CONIPHER clustering and tree building en
 ```
 sh 0_runningClusteringTreeBuilding.sh
 ```
+
+
+#### Running CONIPHER tree building
+
+We additionally provide a wrapper script to run CONIPHER tree building by itself. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first ensure you are in the `CONIPHER-wrapper` folder on your terminal, then run the following command:
+
+```
+sh 0_runningTreeBuilding.sh
+```
+
