@@ -3,25 +3,36 @@
 ################################################################################## Input parameters
 ###################################################################################################
 
-case_id="LTXTOY003"
-scriptDir=`pwd`"/"
-inputTSV=${scriptDir}"/toy_tsv.tsv"
-outDir=${scriptDir}"/"${case_id}
+case_id="CRUKTOY001"
+scriptDir=`pwd`"/src/"
+inputTSV="data/input_tsv.tsv"
+outDir="data/results"
 
 
 ############################################################### Running clustering and treebuilding
 ###################################################################################################
 
-source activate pyclone_2
+source activate conipher
 
-scDir=${outDir}"/Clustering/"
+clusteringDir=${outDir}"/Clustering/"
 treeDir=${outDir}"/TreeBuilding/"
 
-mkdir -p ${scDir}
+mkdir -p ${clusteringDir}
 mkdir -p ${treeDir}
 
-Rscript ${scriptDir}run_clustering.R --case_id ${case_id} --script_dir ${scriptDir} --input_tsv ${inputTSV} --working_dir ${scDir} --pyclone_version sc_nosciclone --nProcs 2
-Rscript ${scriptDir}run_treebuilding.R --input_tsv ${scDir}${case_id}".SCoutput.CLEAN.tsv" --out_dir ${treeDir} --script_dir ${scriptDir} --prefix LTX
+Rscript ${scriptDir}run_clustering.R \
+--case_id ${case_id} \
+--script_dir ${scriptDir} \
+--input_tsv ${inputTSV} \
+--working_dir ${clusteringDir} \
+--pyclone_version sc_nosciclone \
+--nProcs 2
+
+Rscript ${scriptDir}run_treebuilding.R \
+--input_tsv ${clusteringDir}${case_id}".SCoutput.CLEAN.tsv" \
+--out_dir ${treeDir} \
+--script_dir ${scriptDir} \
+--prefix CRUK
 
 # conda deactivate
 
