@@ -16,17 +16,9 @@ cd CONIPHER-wrapper
 #### Create CONIPHER conda environment
 To be able to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. 
 
-To create the conda environment to successfully install and run CONIPHER clustering and tree building, either import the CONIPHER conda environment from the .yaml file provided (preferred) or manually build the conda environment using the instructions below.
+To create the conda environment to successfully install and run CONIPHER clustering and tree building, please manually build the conda environment using the instructions below.
 
-##### VERSION 1 - create conda environment from yaml file
-
-On your terminal, ensure you are located in the `CONIPHER-wrapper` directory and create the conda environment by entering the following command:
-```
-conda env create -f conipher_env.yml
-```
-
-
-##### VERSION 2 - create conda environment manually
+On your terminal, ensure you are located in the `CONIPHER-wrapper` directory.
 
 1. Create the conda environment with the following libaries installed
 ```
