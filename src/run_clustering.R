@@ -43,14 +43,11 @@ option_list = list(
   
   make_option(c("--only_truncal_subclonal_copy_correction"), type="logical", default="TRUE", 
               help="should only truncal subclonal copy number correction be used", metavar="character"),
-  
-  make_option(c("--pyclone_version"), type="character", default="sc_nosciclone", 
-              help="specifies clustering version to use; currently either sc or sc_nosciclone or mphase or original", metavar="character"),
 
   make_option(c("--pyclone_ccf"), type="character", default="pyclone", 
               help="if pyclone original is used, should the phyloCCF be calculated, or simply the pyclone version [pyclone or phyloCCF]", metavar="character"),
   
-  
+
   make_option(c("-y", "--pyclone_yaml"), type="character", default="template.config.yaml", 
               help="A template yaml file for pyclone", metavar="character"),
 
@@ -710,417 +707,56 @@ if(ncol(mut.heatmap)>2)
 }
 
 
-if (opt$pyclone_version %in% c("sc", "sc_nosciclone")) {
-  library(parallel)
-  library(future)
-  no_cores <- nProcs
-  print(paste0("Number of cores that are available: ", no_cores))
 
-  source(paste0(scriptDir, "functionsForSimpleClustering.v13.R"))
-  if (opt$pyclone_version %in% "sc") {
-    source(paste0(scriptDir, "sciClone.R"))
-    simpleClusterList <- findSimpleClustersWithSciClone(phylo.region.list, mut.table)
-    tmp <- mclapply(simpleClusterList, function(x) {
-      if (x$SciCloneMultiModal) {
-        RunPyCloneWithSimpleClusters(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter")
-      } 
-      if (!x$SciCloneMultiModal) {
-        CreateOutputNoPyCloneRun(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir)
-      }
-    }, mc.cores = no_cores)
-  } else if (opt$pyclone_version %in% "sc_nosciclone") {
-    simpleClusterList <- findSimpleClusters(phylo.region.list, mut.table)
-    ### always run pyclone
-    tmp <- mclapply(simpleClusterList, function(x) {
-      if (length(x$MutationsWithCluster) < 5) {
-        CreateOutputNoPyCloneRun(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir)
-      } else {
-        RunPyCloneWithSimpleClusters(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter")
-      }
-    }, mc.cores = no_cores)
+library(parallel)
+library(future)
+no_cores <- nProcs
+print(paste0("Number of cores that are available: ", no_cores))
+
+source(paste0(scriptDir, "functionsForSimpleClustering.v13.R"))
+
+simpleClusterList <- findSimpleClusters(phylo.region.list, mut.table)
+### always run pyclone
+tmp <- mclapply(simpleClusterList, function(x) {
+  if (length(x$MutationsWithCluster) < 5) {
+    CreateOutputNoPyCloneRun(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir)
+  } else {
+    RunPyCloneWithSimpleClusters(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter")
   }
-  rm(list = c("no_cores", "tmp"))
+}, mc.cores = no_cores)
+# }
+rm(list = c("no_cores", "tmp"))
 
 
-  ### changing CCFs to 0 if cluster is absent
-  if (opt$fix_absentCCFs) {
-    clusterPresence.df <- Reduce(rbind, lapply(names(simpleClusterList), function(x) data.frame(clusterID = x, regions = simpleClusterList[[x]]$RegionsInCluster, stringsAsFactors = FALSE)))
-    for (region in names(phylo.region.list)) {
-      tmp.clusterPresence <- clusterPresence.df %>% filter(regions %in% region) %>% pull(clusterID)
-      tmp.clusterMutations <- as.character(unlist(lapply(simpleClusterList[as.character(tmp.clusterPresence)], function(x) x$MutationsWithCluster)))
-      phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF"] <- 0
-      phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF.0.05"] <- 0
-      phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF.0.95"] <- 0
-    }
-  }
-  ITH1clust <- names(which(sapply(simpleClusterList, function(x) length(x$RegionsInCluster)) == length(phylo.region.list)))
-  ITH1muts  <- simpleClusterList[[as.character(ITH1clust)]]$MutationsWithCluster
-
-
-  allClusters <- paste0(list.files(new.dir, pattern = paste0(sample, "_cluster"), full.names = TRUE), "/", sample, ".results.tsv")
-  pyclone.results.list <- lapply(names(simpleClusterList), function(clusterID) {
-    cluster.results.file <- grep(paste0("cluster", clusterID, "/"), allClusters, value = TRUE)
-    pyclone.results <- read.table(cluster.results.file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
-    colnames(pyclone.results)  <- gsub('mutation_id', 'X', colnames(pyclone.results))
-    pyclone.results$cluster_id <- as.numeric(clusterID) * 100 + as.numeric(pyclone.results$cluster_id)
-    if (length(grep("^X$", colnames(pyclone.results))) == 0) {
-      pyclone.results$X <- rownames(pyclone.results)
-    }
-    return(pyclone.results[, c("X", "cluster_id")])
-  })
-  pyclone.results <- Reduce(rbind, pyclone.results.list)
-  sample.results <- paste(new.dir,"/",sample,'.results.tsv',sep="")
-  write.table(pyclone.results, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE, file = sample.results)
-} else if (opt$pyclone_version %in% "mphase") 
-  {
-  # Now, let's see how this changes if we use PyClone
+### changing CCFs to 0 if cluster is absent
+if (opt$fix_absentCCFs) {
+  clusterPresence.df <- Reduce(rbind, lapply(names(simpleClusterList), function(x) data.frame(clusterID = x, regions = simpleClusterList[[x]]$RegionsInCluster, stringsAsFactors = FALSE)))
   for (region in names(phylo.region.list)) {
-    
-    region.mut.table <- mut.table
-    
-    region.seg.copy  <- seg.mat.phylo[seg.mat.phylo$SampleID%in%region,,drop=FALSE]
-    pyclone.table    <- data.frame(t(sapply(1:nrow(region.mut.table),identify.subclonal.mut.copy.number.ascat,region.mut.table,region.seg.copy,region,sample))
-                                   ,stringsAsFactors=FALSE)
-    
-    na.mutations           <- pyclone.table[is.na(pyclone.table$minor_cn),,drop=FALSE]
-    loss.mutations         <- pyclone.table[as.numeric(pyclone.table$major_cn)==0|((as.numeric(pyclone.table$var_counts)+as.numeric(pyclone.table$ref_counts))==0),]
-    error.muts             <- rbind(na.mutations,loss.mutations)
-    error.muts             <- unlist(na.mutations$mutation_id,loss.mutations$mutation_id)
-    error.muts.table       <- paste(new.dir,"/",region,".error.muts.tsv",sep="")
-    
-    if (length(error.muts)>=1) {
-      write.table  (error.muts
-                    ,sep="\t"
-                    ,quote=FALSE
-                    ,col.names=TRUE
-                    ,row.names=FALSE
-                    ,file=error.muts.table
-      )
-    }
-    
-    # A few sanity 
-    pyclone.table    <- pyclone.table[!is.na(pyclone.table$minor_cn),]
-    pyclone.table    <- pyclone.table[!is.na(pyclone.table$ref_counts),]
-    pyclone.table    <- pyclone.table[!duplicated(pyclone.table$mutation_id),]
-    pyclone.table    <- pyclone.table[as.numeric(pyclone.table$major_cn)>=1,]
-    pyclone.table    <- pyclone.table[!is.na(pyclone.table$minor_cn),]
-    
-    # Now, let's check what the cancer cell fraction estimates are for this region
-    region.ccf               <- phylo.region.list[[region]]
-    region.ccf               <- data.frame(region.ccf,stringsAsFactors=FALSE)
-    rownames(region.ccf)     <- region.ccf$mutation_id
-    tmp                      <- intersect(unlist(pyclone.table$mutation_id),unlist(region.ccf$mutation_id))
-    rownames(pyclone.table)  <- pyclone.table$mutation_id
-    pyclone.table            <- pyclone.table[tmp,,drop=FALSE]
-    region.ccf               <- region.ccf[tmp,,drop=FALSE]
-    
-    tmp                      <- round(((unlist(pyclone.table$var_counts))/(unlist(region.ccf$phyloCCF)/2))-unlist(pyclone.table$var_counts))
-    tmp[is.na(tmp)]          <- unlist(pyclone.table$ref_counts[(is.na(tmp))])
-    pyclone.table$ref_counts <- tmp
-    pyclone.table$minor_cn   <- 0
-    pyclone.table$major_cn   <- 2
-    pyclone.table$ref_counts <- apply(cbind(pyclone.table$ref_counts,2),1,max)
-    
-    sample.purity    <- 0.5
-    
-    if (sample.purity>1) {
-      stop('\nYour tumour content is greater than 1! \nYou probably don\'t have an ASCAT estimate. \nThere is an alernative script for this scenario.')
-    }
-    
-    pyclone.tsv   <- paste(new.dir,"/",region,".tsv",sep="")
-    pyclone.out   <- apply(pyclone.table,2,as.character)
-    write.table  (pyclone.out
-                  ,sep="\t"
-                  ,quote=FALSE
-                  ,col.names=TRUE
-                  ,row.names=FALSE
-                  ,file=pyclone.tsv
-    )
-    
-    #   Run PyClone build_mutations_file TSV_FILE where TSV_FILE is the input file you have created.
-    pyclone.yaml   <- paste(new.dir,"/",region,".yaml",sep="")
-    
-    ### v13 edit
-    cmd <- paste(PyClone
-                 ," build_mutations_file "
-                 ,"--in_file ", pyclone.tsv
-                 ," --out_file ", pyclone.yaml
-                 #," --var_prior BB"
-                 #," --ref_prior normal"
-                 ,sep="")
-    cat('\n')
-    
-    if(run.pyclone) {
-      cat(cmd)
-      system(cmd)
-      
-      yaml <- readLines(pyclone.yaml)
-      rm.indx <- grep("AB", yaml)
-      if (length(grep("prior_weight", grep("AB", yaml, value = TRUE))) > 0) {
-          yaml <- yaml[-rm.indx]    
-      } else {
-          yaml <- yaml[-c(rm.indx-2, rm.indx-1, rm.indx, rm.indx+1)]
-      } 
-      write.table(yaml, file = pyclone.yaml, col.names = FALSE, row.names = FALSE, quote = FALSE)
-      
-    }
-    
-    cat('\n')
-    
+    tmp.clusterPresence <- clusterPresence.df %>% filter(regions %in% region) %>% pull(clusterID)
+    tmp.clusterMutations <- as.character(unlist(lapply(simpleClusterList[as.character(tmp.clusterPresence)], function(x) x$MutationsWithCluster)))
+    phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF"] <- 0
+    phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF.0.05"] <- 0
+    phylo.region.list[[region]][!as.character(unlist(phylo.region.list[[region]]$mutation_id)) %in% tmp.clusterMutations, "phyloCCF.0.95"] <- 0
   }
-
-
-  # Next let's create a configuration file
-  pyclone.config.yaml <- paste(new.dir,"/",sample,".config.yaml",sep="")
-  cat('did you get here?')
-  pyclone.config      <- readLines(template.config.yaml)
-  start.samples       <- (grep("samples",pyclone.config)+1)
-  end.samples         <- length(pyclone.config)
-
-  sample.lines        <- pyclone.config[start.samples:end.samples]
-  pyclone.config      <- pyclone.config[-c(start.samples:end.samples)]
-  pyclone.config      <- c(pyclone.config, "init_method: connected", "", "samples:")
-  pyclone.config      <- gsub("working.directory.location", new.dir, pyclone.config)
-
-  if(run.pyclone) {
-    write.table(pyclone.config
-                , file=pyclone.config.yaml
-                ,col.names=FALSE
-                ,row.names=FALSE
-                ,quote=FALSE)
-  }
-
-
-  print("Running:")
-  for (region in names(phylo.region.list)) {
-    print(region)
-    sample.config       <- gsub("TCGA.barcode", region, sample.lines)
-    pyclone.yaml        <- paste(region,".yaml",sep="")
-    sample.config       <- gsub("mutations.yaml", pyclone.yaml, sample.config)
-    region.purity       <- 0.5
-    
-    sample.config       <- gsub("value: 1.0", paste("value: ", signif(region.purity,3), sep=""), sample.config)
-    
-    sample.config       <- sample.config[1:8]
-    
-    if (run.pyclone) {
-      write.table(sample.config,file=pyclone.config.yaml
-                  ,append=TRUE
-                  ,quote=FALSE
-                  ,col.names=FALSE
-                  ,row.names=FALSE)
-    }
-
-    
-  }
-
-  # Run the PyClone analysis using the PyClone analyse 
-  cmd <- paste(PyClone
-               ," run_analysis --config_file "
-               ,pyclone.config.yaml
-               ,sep=""
-  )
-  cat('\n')
-
-  if(run.pyclone) {
-    cat(cmd)
-    system(cmd)
-  }
-  cat('\n')
-
-  # Create a Plot with the ceullar frequencies
-
-  cmd <- paste(PyClone
-               ," plot_cellular_frequencies "
-               , pyclone.config.yaml
-               , " ./ --burnin 1000"
-               , sep="")
-  cat('\n')
-  cat('\n')
-
-  sample.results <- paste(new.dir,"/",sample,'.results.tsv',sep="")
-  cmd <- paste(PyClone
-               ," build_table --config_file "
-               , pyclone.config.yaml
-               , " --table_type old_style --out_file "
-               , sample.results
-               , " --max_clusters 35"
-               , " --burnin 1000"
-               , sep="")
-
-  cat('\n')
-
-  if(run.pyclone) {
-    cat(cmd)
-    system(cmd)
-    
-  }
-  cat('\n')
-} else if (opt$pyclone_version %in% "original")
-{
-  
-    # Now, let's see how this changes if we use original PyClone
-    for (region in names(phylo.region.list)) {
-      
-      region.mut.table <- mut.table
-      
-      region.seg.copy  <- seg.mat.phylo[seg.mat.phylo$SampleID%in%region,,drop=FALSE]
-      pyclone.table    <- data.frame(t(sapply(1:nrow(region.mut.table),identify.subclonal.mut.copy.number.ascat,region.mut.table,region.seg.copy,region,sample))
-                                     ,stringsAsFactors=FALSE)
-      
-      na.mutations           <- pyclone.table[is.na(pyclone.table$minor_cn),,drop=FALSE]
-      loss.mutations         <- pyclone.table[as.numeric(pyclone.table$major_cn)==0|((as.numeric(pyclone.table$var_counts)+as.numeric(pyclone.table$ref_counts))==0),]
-      error.muts             <- rbind(na.mutations,loss.mutations)
-      error.muts             <- unlist(na.mutations$mutation_id,loss.mutations$mutation_id)
-      error.muts.table       <- paste(new.dir,"/",region,".error.muts.tsv",sep="")
-      
-      if (length(error.muts)>=1) {
-        write.table  (error.muts
-                      ,sep="\t"
-                      ,quote=FALSE
-                      ,col.names=TRUE
-                      ,row.names=FALSE
-                      ,file=error.muts.table
-        )
-      }
-      
-      # A few sanity 
-      pyclone.table    <- pyclone.table[!is.na(pyclone.table$minor_cn),]
-      pyclone.table    <- pyclone.table[!is.na(pyclone.table$ref_counts),]
-      pyclone.table    <- pyclone.table[!duplicated(pyclone.table$mutation_id),]
-      pyclone.table    <- pyclone.table[as.numeric(pyclone.table$major_cn)>=1,]
-      pyclone.table    <- pyclone.table[!is.na(pyclone.table$minor_cn),]
-      
-      sample.purity    <- region.seg.copy$ACF[1]
-      
-      if (sample.purity>1) {
-        stop('\nYour tumour content is greater than 1! \nYou probably don\'t have an ASCAT estimate. \nThere is an alernative script for this scenario.')
-      }
-      
-      pyclone.tsv   <- paste(new.dir,"/",region,".tsv",sep="")
-      pyclone.out   <- apply(pyclone.table,2,as.character)
-      write.table  (pyclone.out
-                    ,sep="\t"
-                    ,quote=FALSE
-                    ,col.names=TRUE
-                    ,row.names=FALSE
-                    ,file=pyclone.tsv
-      )
-      
-      #   Run PyClone build_mutations_file TSV_FILE where TSV_FILE is the input file you have created.
-      pyclone.yaml   <- paste(new.dir,"/",region,".yaml",sep="")
-      
-      cmd <- paste(PyClone
-                   ," build_mutations_file "
-                   ,"--in_file ", pyclone.tsv
-                   ," --out_file ", pyclone.yaml
-                   ,sep="")
-      cat('\n')
-      
-      if(run.pyclone) {
-        cat(cmd)
-        system(cmd)        
-      }
-      
-      cat('\n')
-
-      
-    }
-    
-    
-    # Next let's create a configuration file
-    pyclone.config.yaml <- paste(new.dir,"/",sample,".config.yaml",sep="")
-    cat('did you get here?')
-    pyclone.config      <- readLines(template.config.yaml)
-    start.samples       <- (grep("samples",pyclone.config)+1)
-    end.samples         <- length(pyclone.config)
-    
-    sample.lines        <- pyclone.config[start.samples:end.samples]
-    pyclone.config      <- pyclone.config[-c(start.samples:end.samples)]
-    pyclone.config      <- c(pyclone.config, "init_method: connected", "", "samples:")
-    pyclone.config      <- gsub("working.directory.location", new.dir, pyclone.config)
-    
-    if(run.pyclone) {
-      write.table(pyclone.config
-                  , file=pyclone.config.yaml
-                  ,col.names=FALSE
-                  ,row.names=FALSE
-                  ,quote=FALSE)
-    }
-    
-    
-    print("Running:")
-    for (region in names(phylo.region.list)) {
-      print(region)
-      sample.config       <- gsub("TCGA.barcode", region, sample.lines)
-      pyclone.yaml        <- paste(region,".yaml",sep="")
-      sample.config       <- gsub("mutations.yaml", pyclone.yaml, sample.config)
-      region.seg.copy  <- seg.mat.phylo[seg.mat.phylo$SampleID%in%region,,drop=FALSE]
-      
-      
-      sample.purity    <- region.seg.copy$ACF[1]
-      
-      sample.config       <- gsub("value: 1.0", paste("value: ", signif(sample.purity,3), sep=""), sample.config)
-      
-      sample.config       <- sample.config[1:8]
-      
-      if (run.pyclone) {
-        write.table(sample.config,file=pyclone.config.yaml
-                    ,append=TRUE
-                    ,quote=FALSE
-                    ,col.names=FALSE
-                    ,row.names=FALSE)
-      }
-      
-      
-    }
-    
-    # Run the PyClone analysis using the PyClone analyse 
-    cmd <- paste(PyClone
-                 ," run_analysis --config_file "
-                 ,pyclone.config.yaml
-                 ,sep=""
-    )
-    cat('\n')
-    
-    if(run.pyclone) {
-      cat(cmd)
-      system(cmd)
-    }
-    cat('\n')
-    
-    # Create a Plot with the ceullar frequencies
-    
-    cmd <- paste(PyClone
-                 ," plot_cellular_frequencies "
-                 , pyclone.config.yaml
-                 , " ./ --burnin 1000"
-                 , sep="")
-    cat('\n')
-    cat('\n')
-    
-    sample.results <- paste(new.dir,"/",sample,'.results.tsv',sep="")
-    cmd <- paste(PyClone
-                 ," build_table --config_file "
-                 , pyclone.config.yaml
-                 , " --table_type old_style --out_file "
-                 , sample.results
-                 , " --max_clusters 35"
-                 , " --burnin 1000"
-                 , sep="")
-    
-    cat('\n')
-    
-    if(run.pyclone) {
-      cat(cmd)
-      system(cmd)
-      
-    }
-    cat('\n')
-  
-} else {
-  stop("Incorrect pyclone version specified.")
 }
+ITH1clust <- names(which(sapply(simpleClusterList, function(x) length(x$RegionsInCluster)) == length(phylo.region.list)))
+ITH1muts  <- simpleClusterList[[as.character(ITH1clust)]]$MutationsWithCluster
+
+
+allClusters <- paste0(list.files(new.dir, pattern = paste0(sample, "_cluster"), full.names = TRUE), "/", sample, ".results.tsv")
+pyclone.results.list <- lapply(names(simpleClusterList), function(clusterID) {
+  cluster.results.file <- grep(paste0("cluster", clusterID, "/"), allClusters, value = TRUE)
+  pyclone.results <- read.table(cluster.results.file, sep = "\t", header = TRUE, stringsAsFactors = FALSE)
+  colnames(pyclone.results)  <- gsub('mutation_id', 'X', colnames(pyclone.results))
+  pyclone.results$cluster_id <- as.numeric(clusterID) * 100 + as.numeric(pyclone.results$cluster_id)
+  if (length(grep("^X$", colnames(pyclone.results))) == 0) {
+    pyclone.results$X <- rownames(pyclone.results)
+  }
+  return(pyclone.results[, c("X", "cluster_id")])
+})
+pyclone.results <- Reduce(rbind, pyclone.results.list)
+sample.results <- paste(new.dir,"/",sample,'.results.tsv',sep="")
+write.table(pyclone.results, sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE, file = sample.results)
 
 pyclone.results <- read.table(sample.results
                               ,sep="\t"
@@ -1138,422 +774,381 @@ names(most.likely.cluster) <- pyclone.results$X
 muts.to.remove <- c()
 # let's have a look at whether any of the clusters are explained by copy number events
 
-if(!opt$pyclone_version%in%'original')
+
+mut.pvals            <- c()
+cluster.prop.aber    <- c()
+require(coin)
+
+for (cluster in unique(most.likely.cluster))
 {
-  mut.pvals            <- c()
-  cluster.prop.aber    <- c()
-  require(coin)
   
-  for (cluster in unique(most.likely.cluster))
+  tmp               <- copy.driven.clusterNEW(cluster
+                                            ,seg.mat.copy=seg.mat.copy
+                                            ,most.likely.cluster=most.likely.cluster
+                                            ,region.earlyLate.list=phylo.region.list
+                                            ,min.prop.cens=0.1
+                                            ,loss.thresh = 0.25
+                                            ,diff.thresh =0.55
+  )
+  
+  if(TRUE%in%is.na(tmp[,1]))
   {
-    
-    tmp               <- copy.driven.clusterNEW(cluster
-                                             ,seg.mat.copy=seg.mat.copy
-                                             ,most.likely.cluster=most.likely.cluster
-                                             ,region.earlyLate.list=phylo.region.list
-                                             ,min.prop.cens=0.1
-                                             ,loss.thresh = 0.25
-                                             ,diff.thresh =0.55
-    )
-    
-    if(TRUE%in%is.na(tmp[,1]))
-    {
-      stop;
-    }
-    cluster.prop.aber <- c(cluster.prop.aber,length(which(tmp[,1]<0.05&tmp[,2]<=0.5))/nrow(tmp))
-    mut.pvals <- rbind(mut.pvals,tmp)
-    
-    
+    stop;
   }
-  
-  names(cluster.prop.aber)  <- unique(most.likely.cluster)
-  # Let's also check what the minimum copy number is for each mutation that is classified as lost
-  
-  out <- c()
-  for (mutation_id in rownames(mut.pvals))
-  {
-    out <- rbind(out,getMinCPN(mutation_id,phylo.region.list))
-  }
-  
-  mut.pvals                 <- cbind(mut.pvals,out[,2])
-  sig.pvals                 <- mut.pvals[which(as.numeric(mut.pvals[,1])<0.05&as.numeric(mut.pvals[,2])<=0.75&as.numeric(mut.pvals[,3])==0),1]
-  sig.table                 <- mut.pvals[which(as.numeric(mut.pvals[,1])<0.05&as.numeric(mut.pvals[,2])<=0.75&as.numeric(mut.pvals[,3])==0),,drop=FALSE]
-  
-  print(length(sig.pvals))
-  # let's see what happens if we set any cluster with over X% sig pvals as the entire cluster missing
-  clusters.to.remove <- names(which(as.numeric(cluster.prop.aber)>=0.85))
-  muts.to.remove     <- names(most.likely.cluster)[which(most.likely.cluster%in%clusters.to.remove)]
-  muts.to.remove     <- unique(c(names(sig.pvals),muts.to.remove))
-  muts.to.remove     <- muts.to.remove[!is.na(muts.to.remove)]
-  names(muts.to.remove) <- muts.to.remove
-  
-  # let's be clever about this and give the clusters we're removing the highest names
-  cluster.size.remove          <- names(most.likely.cluster[most.likely.cluster%in%names(which(table(most.likely.cluster)<min.cluster.size))])
-  small.clusters               <- most.likely.cluster[cluster.size.remove]
-  
-  # are any of the small clusters private
-  for(small.cluster in unique(small.clusters))
-  {
-    
-    # create a presence absence heatmap
-    binary.heatmap  <- pyclone.results[,2:(ncol(pyclone.results)-1),drop=FALSE]
-    binary.heatmap  <-ifelse(binary.heatmap<min.ccf.present,0,1)
-    rownames(binary.heatmap) <- pyclone.results$X
-    row.names       <- pyclone.results[pyclone.results$cluster_id%in%small.cluster,'X']
-    
-    if(median(rowSums(binary.heatmap[row.names,,drop=FALSE]))==1)
-    {
-      small.clusters <- small.clusters[!small.clusters%in%small.cluster]
-    }
-    
-    
-  }
-  
-  cluster.size.remove          <- cluster.size.remove[cluster.size.remove%in%names(small.clusters)]
+  cluster.prop.aber <- c(cluster.prop.aber,length(which(tmp[,1]<0.05&tmp[,2]<=0.5))/nrow(tmp))
+  mut.pvals <- rbind(mut.pvals,tmp)
   
   
-  old.most.likely.cluster      <- most.likely.cluster
-  
-  most.likely.cluster <- most.likely.cluster[!names(most.likely.cluster)%in%unique(c(muts.to.remove,cluster.size.remove))]
-  
-  if(length(most.likely.cluster)==0)
-  {
-    stop("ClusterSize\nYou don't have any clean clusters greater than min.cluster.size")
-  }
-  
-  # Let's rename the most likely cluster
-  tmp <- most.likely.cluster
-  most.likely.cluster <- as.numeric(factor(most.likely.cluster))
-  names(most.likely.cluster) <- names(tmp)
-  if(length(most.likely.cluster)>1)
-  {
-    tmp                 <- as.character(1:length(unique(most.likely.cluster)))
-    names(tmp)          <- names(table(most.likely.cluster)[order(table(most.likely.cluster),decreasing = TRUE)])
-    tmp2                <- most.likely.cluster
-    most.likely.cluster <- tmp[as.character(match(most.likely.cluster,1:length(most.likely.cluster)))]
-    names(most.likely.cluster) <- names(tmp2)
-    solid.cluster.end <- max(as.numeric(most.likely.cluster))
-    new.cluster.start <- max(as.numeric(most.likely.cluster))+1
-    removed.muts      <- old.most.likely.cluster[which(!names(old.most.likely.cluster)%in%names(most.likely.cluster))]
-    removed.clusters  <- c()    
-    for (cluster in names(table(removed.muts)[order(table(removed.muts),decreasing=TRUE)]))
-    {
-      new.cluster <- removed.muts[removed.muts%in%cluster]
-      new.cluster[new.cluster%in%cluster] <- new.cluster.start
-      removed.clusters <- c(removed.clusters,new.cluster)
-      new.cluster.start <- new.cluster.start +1
-    }
-    
-    # let's add back the ones to remove, but make these higher clusters (i.e. these will have higher number)
-    # this will make their removal seem easier later hopefully
-    
-    
-    most.likely.cluster <- c(most.likely.cluster,removed.clusters)
-    most.likely.cluster <- most.likely.cluster[order(as.numeric(most.likely.cluster))]
-    names.muts          <- names(most.likely.cluster)
-    most.likely.cluster <- as.numeric(most.likely.cluster)
-    names(most.likely.cluster) <- names.muts
-    
-  }
-  if(length(most.likely.cluster)==0)
-  {
-    
-    
-    solid.cluster.end <- 0
-    new.cluster.start <- 1
-    
-    removed.clusters  <- c()    
-    for (cluster in names(table(removed.muts)[order(table(removed.muts),decreasing=TRUE)]))
-    {
-      new.cluster <- removed.muts[removed.muts%in%cluster]
-      new.cluster[new.cluster%in%cluster] <- new.cluster.start
-      removed.clusters <- c(removed.clusters,new.cluster)
-      new.cluster.start <- new.cluster.start +1
-    }
-    most.likely.cluster <- removed.clusters
-    
-  }
-  
-  
-  
-  #Let's add the muts to remove back into the table
-  v.pvals                                                        <- rep(NA,nrow(mut.table))
-  names(v.pvals)                                                 <- mut.table$mutation_id
-  v.pvals[intersect(names(v.pvals),rownames(mut.pvals))]         <- mut.pvals[intersect(names(v.pvals),rownames(mut.pvals)),1]
-  v.remove                                                       <- names(v.pvals)%in%muts.to.remove
-  names(v.remove)                                                <- names(v.pvals)
-  v.cluster                                                      <- rep(NA,nrow(mut.table))     
-  names(v.cluster)                                               <- names(v.pvals)
-  v.cluster[names(most.likely.cluster)]                          <- most.likely.cluster
-  v.size.remove                                                  <- names(v.pvals)%in%cluster.size.remove
-  names(v.size.remove)                                           <- names(v.pvals)
-  v.minCPN                                                       <- rep(NA,nrow(mut.table))
-  names(v.minCPN)                                                <- names(v.pvals)
-  v.minCPN[intersect(names(v.minCPN),rownames(mut.pvals))]       <- mut.pvals[intersect(names(v.minCPN),rownames(mut.pvals)),3]
-  v.regionLoss                                                      <- rep(NA,nrow(mut.table))
-  names(v.regionLoss)                                                <- names(v.pvals)
-  v.regionLoss[intersect(names(v.regionLoss),rownames(mut.pvals))]<- mut.pvals[intersect(names(v.regionLoss),rownames(mut.pvals)),4]
-  
-  
-  
-  
-  mut.table$cpn.remove.pval <- v.pvals
-  mut.table$cpn.remove      <- v.remove
-  mut.table$cluster         <- v.cluster
-  mut.table$cluster.remove  <- v.size.remove
-  mut.table$minCPN          <- v.minCPN
-  mut.table$regionLoss      <- v.regionLoss
-  
-  mut.table.save.name <- paste(new.dir,patient,'.all.SNV.cpn.xls',sep="")
-  write.table(mut.table
-              ,file=mut.table.save.name
-              ,sep="\t"
-              ,col.names=NA)
-  
-  # let's plot these mutations ####
-  if(length(muts.to.remove)>1)
-  {
-    pdf(paste(new.dir, sample, ".removedCPN.muts.pdf",sep=""),width=8,height = 8)
-    clusters.to.plot <- most.likely.cluster[mut.table[mut.table$cpn.remove%in%TRUE,'mutation_id']]
-    
-    
-   
-    {
-      # let's only plot a cluster if it has removed musted    
-      
-      print(clusters.to.plot)  
-      
-      lyout <- c()
-      for (i in seq(1,length(regions.to.use)*2,by=2))
-      {
-        lyout <- rbind(lyout,rbind(c(rep(i,9),i+1)))
-      }
-      
-      layout(lyout)
-      
-      for (region in regions.to.use)
-      {
-        
-        
-        region.earlyLate  <- phylo.region.list[[region]]                                             
-        region.earlyLate  <- region.earlyLate[!is.na(region.earlyLate$phyloCCF),]
-        region.earlyLate  <- region.earlyLate[region.earlyLate$mutation_id%in%muts.to.remove,,drop=FALSE]
-
-        # Using seg file if exists for plotting
-        region.seg.copy  <- seg.mat.copy[seg.mat.copy$SampleID%in%region,,drop=FALSE]
-        
-        if (!is.null(opt$input_seg_tsv)) {
-          print("Using specified seg file for plotting")
-          region.seg.copy     <- read.delim2(opt$input_seg_tsv)
-          # If providing seg file, ensure the sample names match the sample names in input tsv
-          if (!any(unique(seg.mat.copy.plot$SAMPLE) %in% unique(seg.mat.copy[,1]))){
-            stop('Sample IDs do not match between input_tsv and input_seg_tsv')
-          }
-        } else {
-          print("Using tsv data for plotting")
-          region.seg.copy <- seg.mat.copy
-        }
-
-        region.seg.copy <- region.seg.copy %>% filter(SampleID %in% region)
-        # ensure raw copy number columns are numeric:
-        region.seg.copy$COPY_NUMBER_A <- as.numeric(region.seg.copy$COPY_NUMBER_A)
-        region.seg.copy$COPY_NUMBER_B <- as.numeric(region.seg.copy$COPY_NUMBER_B)
-        
-        # Rename columns
-        sub.mat.copy               <- region.seg.copy
-        
-        colnames(sub.mat.copy)[2]  <- 'Chromosome'
-        colnames(sub.mat.copy)[3]  <- 'StartPosition'
-        colnames(sub.mat.copy)[4]  <- 'EndPosition'
-        
-        #pdf(early.late.pdf)
-        par(mar=c(0.5,5,0.5,0.2))
-        par(lend=1)
-        
-        plot.simpleClusters.raw(seg.mat.patient=sub.mat.copy
-                                ,most.likely.cluster = clusters.to.plot
-                                ,TCGA.earlyLate=region.earlyLate
-                                ,sub.clonal=1
-        )
-        
-        mtexti(region,side = 2,off = 0.5)
-        
-        
-        ds <- density(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)))
-        ds1 <- ds
-        ds1$x <- ds$y
-        ds1$y <- ds$x
-        par(mar=c(0.5,0,0.5,4))
-        A <- hist(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)),breaks=seq(-0.25,6,by=0.1),plot=FALSE)
-        plot(NULL, type = "n"
-             , xlim = c(0, max(A$density))
-             , ylim=c(-0.25,6)
-             ,bty='n'
-             ,xaxs='i'
-             ,xaxt='n'
-             ,yaxt='n'
-             ,yaxs='i'
-             ,xlab=""
-             ,main=""
-             ,ylab=""
-        )
-        rect(0, A$breaks[1:(length(A$breaks) - 1)], A$density, A$breaks[2:length(A$breaks)]
-             ,border=TRUE,col="#CC6666")
-        
-        lines(ds1)
-        
-      }
-    }
-    
-    for (cluster in unique(clusters.to.plot))
-    {
-      # let's only plot a cluster if it has removed musted    
-      
-      print(cluster)  
-      
-      lyout <- c()
-      for (i in seq(1,length(regions.to.use)*2,by=2))
-      {
-        lyout <- rbind(lyout,rbind(c(rep(i,9),i+1)))
-      }
-      
-      layout(lyout)
-      
-      for (region in regions.to.use)
-      {
-        
-        
-        region.earlyLate  <- phylo.region.list[[region]]                                             
-        region.earlyLate  <- region.earlyLate[!is.na(region.earlyLate$phyloCCF),]
-        region.earlyLate  <- region.earlyLate[region.earlyLate$mutation_id%in%muts.to.remove,,drop=FALSE]
-        
-        # Using seg file if exists for plotting
-        region.seg.copy  <- seg.mat.copy[seg.mat.copy$SampleID%in%region,,drop=FALSE]
-
-        if (!is.null(opt$input_seg_tsv)) {
-          print("Using specified seg file for plotting")
-          region.seg.copy     <- read.delim2(opt$input_seg_tsv)
-          # If providing seg file, ensure the sample names match the sample names in input tsv
-          if (!any(unique(seg.mat.copy.plot$SAMPLE) %in% unique(seg.mat.copy[,1]))){
-            stop('Sample IDs do not match between input_tsv and input_seg_tsv')
-          }
-        } else {
-          print("Using tsv data for plotting")
-          region.seg.copy <- seg.mat.copy
-        }
-
-        region.seg.copy <- region.seg.copy %>% filter(SampleID %in% region)
-        # ensure raw copy number columns are numeric:
-        region.seg.copy$COPY_NUMBER_A <- as.numeric(region.seg.copy$COPY_NUMBER_A)
-        region.seg.copy$COPY_NUMBER_B <- as.numeric(region.seg.copy$COPY_NUMBER_B)
-
-        # Rename columns:
-        sub.mat.copy               <- region.seg.copy
-        colnames(sub.mat.copy)[2]  <- 'Chromosome'
-        colnames(sub.mat.copy)[3]  <- 'StartPosition'
-        colnames(sub.mat.copy)[4]  <- 'EndPosition'
-        
-        
-        #pdf(early.late.pdf)
-        par(mar=c(0.5,5,0.5,0.2))
-        par(lend=1)
-        
-        plot.simpleClusters.raw(seg.mat.patient=sub.mat.copy
-                                ,most.likely.cluster = most.likely.cluster
-                                ,cluster=cluster
-                                ,TCGA.earlyLate=region.earlyLate
-                                ,sub.clonal=1
-        )
-        
-        mtexti(region,side = 2,off = 0.5)
-        
-        
-        ds <- density(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)))
-        ds1 <- ds
-        ds1$x <- ds$y
-        ds1$y <- ds$x
-        par(mar=c(0.5,0,0.5,4))
-        A <- hist(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)),breaks=seq(-0.25,6,by=0.1),plot=FALSE)
-        plot(NULL, type = "n"
-             , xlim = c(0, max(A$density))
-             , ylim=c(-0.25,6)
-             ,bty='n'
-             ,xaxs='i'
-             ,xaxt='n'
-             ,yaxt='n'
-             ,yaxs='i'
-             ,xlab=""
-             ,main=""
-             ,ylab=""
-        )
-        rect(0, A$breaks[1:(length(A$breaks) - 1)], A$density, A$breaks[2:length(A$breaks)]
-             ,border=TRUE,col="#CC6666")
-        
-        lines(ds1)
-        
-      }
-    }
-    dev.off()
-    
-    
-    # let's also write these to a table
-    mut.table.remove <- mut.table[mut.table$mutation_id%in%muts.to.remove,,drop=FALSE]
-    write.table(mut.table.remove
-                ,file=paste(new.dir,patient,".removed.muts.txt",sep="")
-                ,sep="\t"
-                ,quote=FALSE
-                ,col.names=NA)
-    if(TRUE%in%c(mut.table.remove$driverCategory%in%driver.cat))
-    {
-      cat("You're removing driver muts!!")
-      removed.drivers <- mut.table.remove[mut.table.remove$driverCategory%in%driver.cat,,drop=FALSE]
-      write.table(removed.drivers
-                  ,file=paste(new.dir,patient,".removed.drivers.txt",sep="")
-                  ,quote=FALSE
-                  ,sep="\t"
-                  ,col.names=NA)
-      cat('\n')
-      cat(removed.drivers$Gene.refGene)
-    }
-    
-  }
 }
-if(opt$pyclone_version%in%'original')
+
+names(cluster.prop.aber)  <- unique(most.likely.cluster)
+# Let's also check what the minimum copy number is for each mutation that is classified as lost
+
+out <- c()
+for (mutation_id in rownames(mut.pvals))
 {
-  old.most.likely.cluster <- most.likely.cluster
-  tmp <- most.likely.cluster
-  most.likely.cluster <- as.numeric(factor(most.likely.cluster))
+  out <- rbind(out,getMinCPN(mutation_id,phylo.region.list))
+}
+
+mut.pvals                 <- cbind(mut.pvals,out[,2])
+sig.pvals                 <- mut.pvals[which(as.numeric(mut.pvals[,1])<0.05&as.numeric(mut.pvals[,2])<=0.75&as.numeric(mut.pvals[,3])==0),1]
+sig.table                 <- mut.pvals[which(as.numeric(mut.pvals[,1])<0.05&as.numeric(mut.pvals[,2])<=0.75&as.numeric(mut.pvals[,3])==0),,drop=FALSE]
+
+print(length(sig.pvals))
+# let's see what happens if we set any cluster with over X% sig pvals as the entire cluster missing
+clusters.to.remove <- names(which(as.numeric(cluster.prop.aber)>=0.85))
+muts.to.remove     <- names(most.likely.cluster)[which(most.likely.cluster%in%clusters.to.remove)]
+muts.to.remove     <- unique(c(names(sig.pvals),muts.to.remove))
+muts.to.remove     <- muts.to.remove[!is.na(muts.to.remove)]
+names(muts.to.remove) <- muts.to.remove
+
+# let's be clever about this and give the clusters we're removing the highest names
+cluster.size.remove          <- names(most.likely.cluster[most.likely.cluster%in%names(which(table(most.likely.cluster)<min.cluster.size))])
+small.clusters               <- most.likely.cluster[cluster.size.remove]
+
+# are any of the small clusters private
+for(small.cluster in unique(small.clusters))
+{
   
-  names(most.likely.cluster) <- names(tmp)
-  if(length(most.likely.cluster)>1)
+  # create a presence absence heatmap
+  binary.heatmap  <- pyclone.results[,2:(ncol(pyclone.results)-1),drop=FALSE]
+  binary.heatmap  <-ifelse(binary.heatmap<min.ccf.present,0,1)
+  rownames(binary.heatmap) <- pyclone.results$X
+  row.names       <- pyclone.results[pyclone.results$cluster_id%in%small.cluster,'X']
+  
+  if(median(rowSums(binary.heatmap[row.names,,drop=FALSE]))==1)
   {
-    tmp                 <- as.character(1:length(unique(most.likely.cluster)))
-    names(tmp)          <- names(table(most.likely.cluster)[order(table(most.likely.cluster),decreasing = TRUE)])
-    tmp2                <- most.likely.cluster
-    most.likely.cluster <- tmp[as.character(match(most.likely.cluster,1:length(most.likely.cluster)))]
-    names(most.likely.cluster) <- names(tmp2)
-    solid.cluster.end <- max(as.numeric(most.likely.cluster))
-    new.cluster.start <- max(as.numeric(most.likely.cluster))+1
-    removed.muts      <- old.most.likely.cluster[which(!names(old.most.likely.cluster)%in%names(most.likely.cluster))]
-    removed.clusters  <- c()    
-    for (cluster in names(table(removed.muts)[order(table(removed.muts),decreasing=TRUE)]))
+    small.clusters <- small.clusters[!small.clusters%in%small.cluster]
+  }
+  
+  
+}
+
+cluster.size.remove          <- cluster.size.remove[cluster.size.remove%in%names(small.clusters)]
+
+
+old.most.likely.cluster      <- most.likely.cluster
+
+most.likely.cluster <- most.likely.cluster[!names(most.likely.cluster)%in%unique(c(muts.to.remove,cluster.size.remove))]
+
+if(length(most.likely.cluster)==0)
+{
+  stop("ClusterSize\nYou don't have any clean clusters greater than min.cluster.size")
+}
+
+# Let's rename the most likely cluster
+tmp <- most.likely.cluster
+most.likely.cluster <- as.numeric(factor(most.likely.cluster))
+names(most.likely.cluster) <- names(tmp)
+if(length(most.likely.cluster)>1)
+{
+  tmp                 <- as.character(1:length(unique(most.likely.cluster)))
+  names(tmp)          <- names(table(most.likely.cluster)[order(table(most.likely.cluster),decreasing = TRUE)])
+  tmp2                <- most.likely.cluster
+  most.likely.cluster <- tmp[as.character(match(most.likely.cluster,1:length(most.likely.cluster)))]
+  names(most.likely.cluster) <- names(tmp2)
+  solid.cluster.end <- max(as.numeric(most.likely.cluster))
+  new.cluster.start <- max(as.numeric(most.likely.cluster))+1
+  removed.muts      <- old.most.likely.cluster[which(!names(old.most.likely.cluster)%in%names(most.likely.cluster))]
+  removed.clusters  <- c()    
+  for (cluster in names(table(removed.muts)[order(table(removed.muts),decreasing=TRUE)]))
+  {
+    new.cluster <- removed.muts[removed.muts%in%cluster]
+    new.cluster[new.cluster%in%cluster] <- new.cluster.start
+    removed.clusters <- c(removed.clusters,new.cluster)
+    new.cluster.start <- new.cluster.start +1
+  }
+  
+  # let's add back the ones to remove, but make these higher clusters (i.e. these will have higher number)
+  # this will make their removal seem easier later hopefully
+  
+  
+  most.likely.cluster <- c(most.likely.cluster,removed.clusters)
+  most.likely.cluster <- most.likely.cluster[order(as.numeric(most.likely.cluster))]
+  names.muts          <- names(most.likely.cluster)
+  most.likely.cluster <- as.numeric(most.likely.cluster)
+  names(most.likely.cluster) <- names.muts
+  
+}
+if(length(most.likely.cluster)==0)
+{
+  
+  
+  solid.cluster.end <- 0
+  new.cluster.start <- 1
+  
+  removed.clusters  <- c()    
+  for (cluster in names(table(removed.muts)[order(table(removed.muts),decreasing=TRUE)]))
+  {
+    new.cluster <- removed.muts[removed.muts%in%cluster]
+    new.cluster[new.cluster%in%cluster] <- new.cluster.start
+    removed.clusters <- c(removed.clusters,new.cluster)
+    new.cluster.start <- new.cluster.start +1
+  }
+  most.likely.cluster <- removed.clusters
+  
+}
+
+
+
+#Let's add the muts to remove back into the table
+v.pvals                                                        <- rep(NA,nrow(mut.table))
+names(v.pvals)                                                 <- mut.table$mutation_id
+v.pvals[intersect(names(v.pvals),rownames(mut.pvals))]         <- mut.pvals[intersect(names(v.pvals),rownames(mut.pvals)),1]
+v.remove                                                       <- names(v.pvals)%in%muts.to.remove
+names(v.remove)                                                <- names(v.pvals)
+v.cluster                                                      <- rep(NA,nrow(mut.table))     
+names(v.cluster)                                               <- names(v.pvals)
+v.cluster[names(most.likely.cluster)]                          <- most.likely.cluster
+v.size.remove                                                  <- names(v.pvals)%in%cluster.size.remove
+names(v.size.remove)                                           <- names(v.pvals)
+v.minCPN                                                       <- rep(NA,nrow(mut.table))
+names(v.minCPN)                                                <- names(v.pvals)
+v.minCPN[intersect(names(v.minCPN),rownames(mut.pvals))]       <- mut.pvals[intersect(names(v.minCPN),rownames(mut.pvals)),3]
+v.regionLoss                                                      <- rep(NA,nrow(mut.table))
+names(v.regionLoss)                                                <- names(v.pvals)
+v.regionLoss[intersect(names(v.regionLoss),rownames(mut.pvals))]<- mut.pvals[intersect(names(v.regionLoss),rownames(mut.pvals)),4]
+
+
+
+
+mut.table$cpn.remove.pval <- v.pvals
+mut.table$cpn.remove      <- v.remove
+mut.table$cluster         <- v.cluster
+mut.table$cluster.remove  <- v.size.remove
+mut.table$minCPN          <- v.minCPN
+mut.table$regionLoss      <- v.regionLoss
+
+mut.table.save.name <- paste(new.dir,patient,'.all.SNV.cpn.xls',sep="")
+write.table(mut.table
+            ,file=mut.table.save.name
+            ,sep="\t"
+            ,col.names=NA)
+
+# let's plot these mutations ####
+if(length(muts.to.remove)>1)
+{
+  pdf(paste(new.dir, sample, ".removedCPN.muts.pdf",sep=""),width=8,height = 8)
+  clusters.to.plot <- most.likely.cluster[mut.table[mut.table$cpn.remove%in%TRUE,'mutation_id']]
+  
+  
+  
+  {
+    # let's only plot a cluster if it has removed musted    
+    
+    print(clusters.to.plot)  
+    
+    lyout <- c()
+    for (i in seq(1,length(regions.to.use)*2,by=2))
     {
-      new.cluster <- removed.muts[removed.muts%in%cluster]
-      new.cluster[new.cluster%in%cluster] <- new.cluster.start
-      removed.clusters <- c(removed.clusters,new.cluster)
-      new.cluster.start <- new.cluster.start +1
+      lyout <- rbind(lyout,rbind(c(rep(i,9),i+1)))
     }
     
-    # let's add back the ones to remove, but make these higher clusters (i.e. these will have higher number)
-    # this will make their removal seem easier later hopefully
+    layout(lyout)
     
+    for (region in regions.to.use)
+    {
+      
+      
+      region.earlyLate  <- phylo.region.list[[region]]                                             
+      region.earlyLate  <- region.earlyLate[!is.na(region.earlyLate$phyloCCF),]
+      region.earlyLate  <- region.earlyLate[region.earlyLate$mutation_id%in%muts.to.remove,,drop=FALSE]
+
+      # Using seg file if exists for plotting
+      region.seg.copy  <- seg.mat.copy[seg.mat.copy$SampleID%in%region,,drop=FALSE]
+      
+      if (!is.null(opt$input_seg_tsv)) {
+        print("Using specified seg file for plotting")
+        region.seg.copy     <- read.delim2(opt$input_seg_tsv)
+        # If providing seg file, ensure the sample names match the sample names in input tsv
+        if (!any(unique(seg.mat.copy.plot$SAMPLE) %in% unique(seg.mat.copy[,1]))){
+          stop('Sample IDs do not match between input_tsv and input_seg_tsv')
+        }
+      } else {
+        print("Using tsv data for plotting")
+        region.seg.copy <- seg.mat.copy
+      }
+
+      region.seg.copy <- region.seg.copy %>% filter(SampleID %in% region)
+      # ensure raw copy number columns are numeric:
+      region.seg.copy$COPY_NUMBER_A <- as.numeric(region.seg.copy$COPY_NUMBER_A)
+      region.seg.copy$COPY_NUMBER_B <- as.numeric(region.seg.copy$COPY_NUMBER_B)
+      
+      # Rename columns
+      sub.mat.copy               <- region.seg.copy
+      
+      colnames(sub.mat.copy)[2]  <- 'Chromosome'
+      colnames(sub.mat.copy)[3]  <- 'StartPosition'
+      colnames(sub.mat.copy)[4]  <- 'EndPosition'
+      
+      #pdf(early.late.pdf)
+      par(mar=c(0.5,5,0.5,0.2))
+      par(lend=1)
+      
+      plot.simpleClusters.raw(seg.mat.patient=sub.mat.copy
+                              ,most.likely.cluster = clusters.to.plot
+                              ,TCGA.earlyLate=region.earlyLate
+                              ,sub.clonal=1
+      )
+      
+      mtexti(region,side = 2,off = 0.5)
+      
+      
+      ds <- density(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)))
+      ds1 <- ds
+      ds1$x <- ds$y
+      ds1$y <- ds$x
+      par(mar=c(0.5,0,0.5,4))
+      A <- hist(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)),breaks=seq(-0.25,6,by=0.1),plot=FALSE)
+      plot(NULL, type = "n"
+            , xlim = c(0, max(A$density))
+            , ylim=c(-0.25,6)
+            ,bty='n'
+            ,xaxs='i'
+            ,xaxt='n'
+            ,yaxt='n'
+            ,yaxs='i'
+            ,xlab=""
+            ,main=""
+            ,ylab=""
+      )
+      rect(0, A$breaks[1:(length(A$breaks) - 1)], A$density, A$breaks[2:length(A$breaks)]
+            ,border=TRUE,col="#CC6666")
+      
+      lines(ds1)
+      
+    }
+  }
+  
+  for (cluster in unique(clusters.to.plot))
+  {
+    # let's only plot a cluster if it has removed musted    
     
-    most.likely.cluster <- c(most.likely.cluster,removed.clusters)
-    most.likely.cluster <- most.likely.cluster[order(as.numeric(most.likely.cluster))]
-    names.muts          <- names(most.likely.cluster)
-    most.likely.cluster <- as.numeric(most.likely.cluster)
-    names(most.likely.cluster) <- names.muts
+    print(cluster)  
     
+    lyout <- c()
+    for (i in seq(1,length(regions.to.use)*2,by=2))
+    {
+      lyout <- rbind(lyout,rbind(c(rep(i,9),i+1)))
+    }
+    
+    layout(lyout)
+    
+    for (region in regions.to.use)
+    {
+      
+      
+      region.earlyLate  <- phylo.region.list[[region]]                                             
+      region.earlyLate  <- region.earlyLate[!is.na(region.earlyLate$phyloCCF),]
+      region.earlyLate  <- region.earlyLate[region.earlyLate$mutation_id%in%muts.to.remove,,drop=FALSE]
+      
+      # Using seg file if exists for plotting
+      region.seg.copy  <- seg.mat.copy[seg.mat.copy$SampleID%in%region,,drop=FALSE]
+
+      if (!is.null(opt$input_seg_tsv)) {
+        print("Using specified seg file for plotting")
+        region.seg.copy     <- read.delim2(opt$input_seg_tsv)
+        # If providing seg file, ensure the sample names match the sample names in input tsv
+        if (!any(unique(seg.mat.copy.plot$SAMPLE) %in% unique(seg.mat.copy[,1]))){
+          stop('Sample IDs do not match between input_tsv and input_seg_tsv')
+        }
+      } else {
+        print("Using tsv data for plotting")
+        region.seg.copy <- seg.mat.copy
+      }
+
+      region.seg.copy <- region.seg.copy %>% filter(SampleID %in% region)
+      # ensure raw copy number columns are numeric:
+      region.seg.copy$COPY_NUMBER_A <- as.numeric(region.seg.copy$COPY_NUMBER_A)
+      region.seg.copy$COPY_NUMBER_B <- as.numeric(region.seg.copy$COPY_NUMBER_B)
+
+      # Rename columns:
+      sub.mat.copy               <- region.seg.copy
+      colnames(sub.mat.copy)[2]  <- 'Chromosome'
+      colnames(sub.mat.copy)[3]  <- 'StartPosition'
+      colnames(sub.mat.copy)[4]  <- 'EndPosition'
+      
+      
+      #pdf(early.late.pdf)
+      par(mar=c(0.5,5,0.5,0.2))
+      par(lend=1)
+      
+      plot.simpleClusters.raw(seg.mat.patient=sub.mat.copy
+                              ,most.likely.cluster = most.likely.cluster
+                              ,cluster=cluster
+                              ,TCGA.earlyLate=region.earlyLate
+                              ,sub.clonal=1
+      )
+      
+      mtexti(region,side = 2,off = 0.5)
+      
+      
+      ds <- density(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)))
+      ds1 <- ds
+      ds1$x <- ds$y
+      ds1$y <- ds$x
+      par(mar=c(0.5,0,0.5,4))
+      A <- hist(ifelse(as.numeric(region.earlyLate$mutCopyNum)>5,5,as.numeric(region.earlyLate$mutCopyNum)),breaks=seq(-0.25,6,by=0.1),plot=FALSE)
+      plot(NULL, type = "n"
+            , xlim = c(0, max(A$density))
+            , ylim=c(-0.25,6)
+            ,bty='n'
+            ,xaxs='i'
+            ,xaxt='n'
+            ,yaxt='n'
+            ,yaxs='i'
+            ,xlab=""
+            ,main=""
+            ,ylab=""
+      )
+      rect(0, A$breaks[1:(length(A$breaks) - 1)], A$density, A$breaks[2:length(A$breaks)]
+            ,border=TRUE,col="#CC6666")
+      
+      lines(ds1)
+      
+    }
+  }
+  dev.off()
+  
+  
+  # let's also write these to a table
+  mut.table.remove <- mut.table[mut.table$mutation_id%in%muts.to.remove,,drop=FALSE]
+  write.table(mut.table.remove
+              ,file=paste(new.dir,patient,".removed.muts.txt",sep="")
+              ,sep="\t"
+              ,quote=FALSE
+              ,col.names=NA)
+  if(TRUE%in%c(mut.table.remove$driverCategory%in%driver.cat))
+  {
+    cat("You're removing driver muts!!")
+    removed.drivers <- mut.table.remove[mut.table.remove$driverCategory%in%driver.cat,,drop=FALSE]
+    write.table(removed.drivers
+                ,file=paste(new.dir,patient,".removed.drivers.txt",sep="")
+                ,quote=FALSE
+                ,sep="\t"
+                ,col.names=NA)
+    cat('\n')
+    cat(removed.drivers$Gene.refGene)
   }
   
 }
@@ -1606,46 +1201,16 @@ region.trace              <- list()
 region.preClustPosterior  <- list()
 region.postClustPosterior <- list()
 
-if (opt$pyclone_version %in% c("sc", "sc_nosciclone")) {
-  for (region in regions.to.use) {
-    clusters.to.use <- sapply(simpleClusterList, function(x) region %in% x$RegionsInCluster)
-    clusters.to.use <- names(clusters.to.use)[clusters.to.use]
+for (region in regions.to.use) {
+  clusters.to.use <- sapply(simpleClusterList, function(x) region %in% x$RegionsInCluster)
+  clusters.to.use <- names(clusters.to.use)[clusters.to.use]
 
-    for (clust in clusters.to.use) {
-      pyclone.tsv <- read.table(paste0(new.dir, patient, "_cluster", clust, "/", patient, '.results.tsv')
-                                , stringsAsFactors = FALSE
-                                , header = TRUE)
-
-      mutation_ids <- unlist(phylo.region.list[[region]]$mutation_id)
-      if (length(grep("mutation_id", colnames(pyclone.tsv))) > 0) {
-        tmp          <- intersect(mutation_ids, pyclone.tsv$mutation_id)
-      } else {
-        tmp          <- intersect(mutation_ids, rownames(pyclone.tsv))
-      }
-      phylo.region.list[[region]]$phyloCCF_PyClone.cluster[mutation_ids%in%tmp] <- most.likely.cluster[tmp]
-    }
-  }
-} else if (opt$pyclone_version %in% "mphase") {
-  for (region in regions.to.use) {
-      pyclone.tsv <- read.table(paste0(new.dir, patient, '.results.tsv')
-                                , stringsAsFactors = FALSE
-                                , header = TRUE)
-
-      mutation_ids    <- unlist(phylo.region.list[[region]]$mutation_id)
-      if (length(grep("mutation_id", colnames(pyclone.tsv))) > 0) {
-        tmp          <- intersect(mutation_ids, pyclone.tsv$mutation_id)
-      } else {
-        tmp          <- intersect(mutation_ids, rownames(pyclone.tsv))
-      }
-      phylo.region.list[[region]]$phyloCCF_PyClone.cluster[mutation_ids%in%tmp] <- most.likely.cluster[tmp]
-    }
-  } else if (opt$pyclone_version %in% "original") {
-  for (region in regions.to.use) {
-    pyclone.tsv <- read.table(paste0(new.dir, patient, '.results.tsv')
+  for (clust in clusters.to.use) {
+    pyclone.tsv <- read.table(paste0(new.dir, patient, "_cluster", clust, "/", patient, '.results.tsv')
                               , stringsAsFactors = FALSE
                               , header = TRUE)
-    
-    mutation_ids    <- unlist(phylo.region.list[[region]]$mutation_id)
+
+    mutation_ids <- unlist(phylo.region.list[[region]]$mutation_id)
     if (length(grep("mutation_id", colnames(pyclone.tsv))) > 0) {
       tmp          <- intersect(mutation_ids, pyclone.tsv$mutation_id)
     } else {
@@ -1653,8 +1218,6 @@ if (opt$pyclone_version %in% c("sc", "sc_nosciclone")) {
     }
     phylo.region.list[[region]]$phyloCCF_PyClone.cluster[mutation_ids%in%tmp] <- most.likely.cluster[tmp]
   }
-} else {
-  stop("Incorrect pyclone version specified.")
 }
     
 
@@ -1665,93 +1228,41 @@ save.image(file=paste(new.dir, sample, ".PyClone.RData",sep=""))
 
 print("Creating human readable output")
 ### creating human readable output
-if(!opt$pyclone_version%in%c('original'))
-{
-  print("Running non-original output")
-  tmp.phylo.region.list <- lapply(phylo.region.list, function(x) {
-    tmp <- data.frame(x, stringsAsFactors = FALSE)
-    rownames(tmp) <- NULL
-    tmp <- tmp %>% 
-      dplyr::select(mutation_id, region, Reference_Base, Alternate_Base, ref_counts, var_counts, phyloCCF, phyloCCF.0.05, phyloCCF.0.95, absolute.ccf, mutCopyNum, major_cn, minor_cn) %>%
-      dplyr::mutate(mutation_id = unlist(mutation_id), ref_counts = unlist(ref_counts), var_counts = unlist(var_counts), minor_cn = unlist(minor_cn), major_cn = unlist(major_cn), region = unlist(region), Reference_Base = unlist(Reference_Base), Alternate_Base = unlist(Alternate_Base)) %>%
-      dplyr::rename(SAMPLE = region, REF = Reference_Base, ALT = Alternate_Base, REF_COUNT = ref_counts, VAR_COUNT = var_counts, CCF_PHYLO = phyloCCF, CCF_OBS = absolute.ccf, MUT_COPY = mutCopyNum, COPY_NUMBER_A = major_cn, COPY_NUMBER_B = minor_cn)
-    return(tmp)
-  })
-  output_tsv <- dplyr::bind_rows(tmp.phylo.region.list) 
-  
-  output_tsv <- output_tsv %>% 
-    dplyr::mutate(CLUSTER = most.likely.cluster[output_tsv$mutation_id],
-                  CLEAN = ifelse(output_tsv$mutation_id %in% names(clean.most.likely.clusters), TRUE, FALSE))
-  
-  output_tsv <- output_tsv %>% 
-    dplyr::mutate(CHR = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[2]),
-                  POS = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[3]),
-                  key = paste(paste0("chr", CHR), POS, REF, ALT, sep = ":")) %>%
-    dplyr::left_join(input_tsv %>% select(key, CASE_ID, SAMPLE, DEPTH, ACF, PLOIDY), by = c("key", "SAMPLE")) %>%
-    dplyr::select(CASE_ID, SAMPLE, CHR, POS, REF, ALT, REF_COUNT, VAR_COUNT, DEPTH, CLUSTER, CCF_PHYLO, CCF_OBS, MUT_COPY, COPY_NUMBER_A, COPY_NUMBER_B, ACF, PLOIDY, CLEAN, phyloCCF.0.05, phyloCCF.0.95)
-  
-  write.table(output_tsv %>% select(-phyloCCF.0.05, -phyloCCF.0.95), file = paste0(new.dir, sample, ".SCoutput.FULL.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  
-  output_tsv_clean <- output_tsv %>% filter(CLEAN) %>% select(-CLEAN, -phyloCCF.0.05, -phyloCCF.0.95)
-  output_tsv_dirty <- output_tsv %>% filter(!CLEAN) %>% select(-CLEAN, -phyloCCF.0.05, -phyloCCF.0.95)
-  
-  write.table(output_tsv_clean, file = paste0(new.dir, sample, ".SCoutput.CLEAN.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  write.table(output_tsv_dirty, file = paste0(new.dir, sample, ".SCoutput.DIRTY.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  
-}
+print("Running non-original output")
+tmp.phylo.region.list <- lapply(phylo.region.list, function(x) {
+  tmp <- data.frame(x, stringsAsFactors = FALSE)
+  rownames(tmp) <- NULL
+  tmp <- tmp %>% 
+    dplyr::select(mutation_id, region, Reference_Base, Alternate_Base, ref_counts, var_counts, phyloCCF, phyloCCF.0.05, phyloCCF.0.95, absolute.ccf, mutCopyNum, major_cn, minor_cn) %>%
+    dplyr::mutate(mutation_id = unlist(mutation_id), ref_counts = unlist(ref_counts), var_counts = unlist(var_counts), minor_cn = unlist(minor_cn), major_cn = unlist(major_cn), region = unlist(region), Reference_Base = unlist(Reference_Base), Alternate_Base = unlist(Alternate_Base)) %>%
+    dplyr::rename(SAMPLE = region, REF = Reference_Base, ALT = Alternate_Base, REF_COUNT = ref_counts, VAR_COUNT = var_counts, CCF_PHYLO = phyloCCF, CCF_OBS = absolute.ccf, MUT_COPY = mutCopyNum, COPY_NUMBER_A = major_cn, COPY_NUMBER_B = minor_cn)
+  return(tmp)
+})
+output_tsv <- dplyr::bind_rows(tmp.phylo.region.list) 
 
-if(opt$pyclone_version%in%c('original')&opt$pyclone_ccf%in%c('pyclone'))
-{
-  print("Running original pyclone output")
-  tmp.phylo.region.list <- lapply(phylo.region.list, function(x) {
-    tmp <- data.frame(x, stringsAsFactors = FALSE)
-    rownames(tmp) <- NULL
-    tmp <- tmp %>% select(mutation_id, region, Reference_Base, Alternate_Base, ref_counts, var_counts, phyloCCF, absolute.ccf, mutCopyNum, major_cn, minor_cn) %>%
-      mutate(mutation_id = unlist(mutation_id), ref_counts = unlist(ref_counts), var_counts = unlist(var_counts), minor_cn = unlist(minor_cn), major_cn = unlist(major_cn), region = unlist(region), Reference_Base = unlist(Reference_Base), Alternate_Base = unlist(Alternate_Base)) %>%
-      dplyr::rename(SAMPLE = region, REF = Reference_Base, ALT = Alternate_Base, REF_COUNT = ref_counts, VAR_COUNT = var_counts, CCF_PHYLO = phyloCCF, CCF_OBS = absolute.ccf, MUT_COPY = mutCopyNum, COPY_NUMBER_A = major_cn, COPY_NUMBER_B = minor_cn)
-    return(tmp)
-  })
-  output_tsv <- bind_rows(tmp.phylo.region.list) 
-  
-  
-  pyclone.tsv <- read.table(paste0(new.dir, patient, '.results.tsv')
-                            , stringsAsFactors = FALSE
-                            , header = TRUE)
-  
-  for (i in 1:nrow(output_tsv))
-  {
-   mut_to_consider <- output_tsv[i,]
-   pyclone_mut <- pyclone.tsv[pyclone.tsv$mutation_id%in%mut_to_consider$mutation_id,,drop=FALSE]
-   if(nrow(pyclone_mut)!=1)
-   {
-     next;
-   }
-   output_tsv[i,]$CCF_PHYLO <- pyclone_mut[,mut_to_consider$SAMPLE]   
-  }
-  
-  output_tsv <- output_tsv %>% 
-    mutate(CLUSTER = most.likely.cluster[output_tsv$mutation_id],
-           CLEAN = ifelse(output_tsv$mutation_id %in% names(clean.most.likely.clusters), TRUE, FALSE))
-  
-  output_tsv <- output_tsv %>% 
-    mutate(CHR = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[2]),
-           POS = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[3]),
-           key = paste(paste0("chr", CHR), POS, REF, ALT, sep = ":")) %>%
-    left_join(input_tsv %>% select(key, CASE_ID, SAMPLE, DEPTH, ACF, PLOIDY), by = c("key", "SAMPLE")) %>%
-    select(CASE_ID, SAMPLE, CHR, POS, REF, ALT, REF_COUNT, VAR_COUNT, DEPTH, CLUSTER, CCF_PHYLO, CCF_OBS, MUT_COPY, COPY_NUMBER_A, COPY_NUMBER_B, ACF, PLOIDY, CLEAN)
-  
-  write.table(output_tsv, file = paste0(new.dir, sample, ".SCoutput.FULL.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  
-  output_tsv_clean <- output_tsv %>% filter(CLEAN) %>% select(-CLEAN)
-  output_tsv_dirty <- output_tsv %>% filter(!CLEAN) %>% select(-CLEAN)
-  
-  write.table(output_tsv_clean, file = paste0(new.dir, sample, ".SCoutput.CLEAN.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  write.table(output_tsv_dirty, file = paste0(new.dir, sample, ".SCoutput.DIRTY.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
-  
-}
+output_tsv <- output_tsv %>% 
+  dplyr::mutate(CLUSTER = most.likely.cluster[output_tsv$mutation_id],
+                CLEAN = ifelse(output_tsv$mutation_id %in% names(clean.most.likely.clusters), TRUE, FALSE))
+
+output_tsv <- output_tsv %>% 
+  dplyr::mutate(CHR = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[2]),
+                POS = sapply(strsplit(unlist(output_tsv$mutation_id), split = ":"), function(x) x[3]),
+                key = paste(paste0("chr", CHR), POS, REF, ALT, sep = ":")) %>%
+  dplyr::left_join(input_tsv %>% select(key, CASE_ID, SAMPLE, DEPTH, ACF, PLOIDY), by = c("key", "SAMPLE")) %>%
+  dplyr::select(CASE_ID, SAMPLE, CHR, POS, REF, ALT, REF_COUNT, VAR_COUNT, DEPTH, CLUSTER, CCF_PHYLO, CCF_OBS, MUT_COPY, COPY_NUMBER_A, COPY_NUMBER_B, ACF, PLOIDY, CLEAN, phyloCCF.0.05, phyloCCF.0.95)
+
+write.table(output_tsv %>% select(-phyloCCF.0.05, -phyloCCF.0.95), file = paste0(new.dir, sample, ".SCoutput.FULL.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
+
+output_tsv_clean <- output_tsv %>% filter(CLEAN) %>% select(-CLEAN, -phyloCCF.0.05, -phyloCCF.0.95)
+output_tsv_dirty <- output_tsv %>% filter(!CLEAN) %>% select(-CLEAN, -phyloCCF.0.05, -phyloCCF.0.95)
+
+write.table(output_tsv_clean, file = paste0(new.dir, sample, ".SCoutput.CLEAN.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
+write.table(output_tsv_dirty, file = paste0(new.dir, sample, ".SCoutput.DIRTY.tsv"), row.names = FALSE, quote = FALSE, sep = "\t")
+
 
 #finally, save a version of the table that is cleaned
-if(opt$clean_clusters%in%TRUE&!opt$pyclone_version%in%'original')
+
+if(opt$clean_clusters %in% TRUE)
 {
   print("Cleaning clusters")
   output_tsv <- correct.clusters.from.table(output_tsv) #kg: merging clusters if sc cn correction created a new cluster
@@ -1767,43 +1278,42 @@ if(opt$clean_clusters%in%TRUE&!opt$pyclone_version%in%'original')
   clonal_cutOff        <- opt$clonal_cutOff
   propClonal_threshold <- opt$propClonal_threshold
 
-  if (opt$pyclone_version %in% c("sc", "sc_nosciclone")) {
-    print("Final merging of ubiqquitous clusters")
-    ### select ubiquitous mutations in clean clusters
-    issue_mutations <- output_tsv %>% 
-      dplyr::mutate(mutation_id = paste(CASE_ID, CHR, POS, REF, sep = ":")) %>% 
-      dplyr::filter(CLEAN, mutation_id %in% ITH1muts)
-    if (nrow(issue_mutations) == 0) {
-      print("No additional clusters corrected")
+
+  print("Final merging of ubiqquitous clusters")
+  ### select ubiquitous mutations in clean clusters
+  issue_mutations <- output_tsv %>% 
+    dplyr::mutate(mutation_id = paste(CASE_ID, CHR, POS, REF, sep = ":")) %>% 
+    dplyr::filter(CLEAN, mutation_id %in% ITH1muts)
+  if (nrow(issue_mutations) == 0) {
+    print("No additional clusters corrected")
+  } else {
+    clusters_to_consider <- unique(issue_mutations$CLUSTER)
+    ### calculate proportion of mutations that are greater or equal to the clonal threshold in each region
+    clonalProportion.df <- issue_mutations %>% 
+      dplyr::group_by(CLUSTER, SAMPLE) %>%
+      dplyr::mutate(nMuts = n(),
+                    propClonal = sum(phyloCCF.0.95 >= clonal_cutOff) / nMuts) %>%
+      dplyr::select(CLUSTER, SAMPLE, propClonal) %>%
+      unique() %>% 
+      dplyr::ungroup()
+
+    ### extract the lowest proportion and filter for clusters where this is greater than the threshold
+    clusters_to_change <- as.character(clonalProportion.df %>%
+      dplyr::group_by(CLUSTER) %>% 
+      dplyr::mutate(minPropClonal = min(propClonal)) %>%
+      dplyr::select(CLUSTER, minPropClonal) %>%
+      unique() %>%
+      dplyr::filter(minPropClonal > propClonal_threshold) %>%
+      dplyr::pull(CLUSTER))
+
+    ### if two or more clusters are above this threshold merge all clusters into the lowest cluster ID
+    if (length(clusters_to_change) == 0) {
+      print("No clusters above specified thresholds")
+    } else if (length(clusters_to_change) == 1) {
+      print("Only single cluster above thresholds identified. Nothing to merge")
     } else {
-      clusters_to_consider <- unique(issue_mutations$CLUSTER)
-      ### calculate proportion of mutations that are greater or equal to the clonal threshold in each region
-      clonalProportion.df <- issue_mutations %>% 
-        dplyr::group_by(CLUSTER, SAMPLE) %>%
-        dplyr::mutate(nMuts = n(),
-                      propClonal = sum(phyloCCF.0.95 >= clonal_cutOff) / nMuts) %>%
-        dplyr::select(CLUSTER, SAMPLE, propClonal) %>%
-        unique() %>% 
-        dplyr::ungroup()
-
-      ### extract the lowest proportion and filter for clusters where this is greater than the threshold
-      clusters_to_change <- as.character(clonalProportion.df %>%
-        dplyr::group_by(CLUSTER) %>% 
-        dplyr::mutate(minPropClonal = min(propClonal)) %>%
-        dplyr::select(CLUSTER, minPropClonal) %>%
-        unique() %>%
-        dplyr::filter(minPropClonal > propClonal_threshold) %>%
-        dplyr::pull(CLUSTER))
-
-      ### if two or more clusters are above this threshold merge all clusters into the lowest cluster ID
-      if (length(clusters_to_change) == 0) {
-        print("No clusters above specified thresholds")
-      } else if (length(clusters_to_change) == 1) {
-        print("Only single cluster above thresholds identified. Nothing to merge")
-      } else {
-        output_tsv <- output_tsv %>%
-          dplyr::mutate(CLUSTER = ifelse(CLUSTER %in% clusters_to_change, min(clusters_to_change), CLUSTER))
-      }
+      output_tsv <- output_tsv %>%
+        dplyr::mutate(CLUSTER = ifelse(CLUSTER %in% clusters_to_change, min(clusters_to_change), CLUSTER))
     }
   }
 
