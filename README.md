@@ -12,7 +12,7 @@ Clone the github repo using the following command from your terminal and enter t
 git clone https://github.com/McGranahanLab/CONIPHER-wrapper/
 cd CONIPHER-wrapper
 ```
---- 
+
 #### Create CONIPHER conda environment
 To be able to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. 
 
@@ -25,7 +25,7 @@ On your terminal, ensure you are located in the `CONIPHER-wrapper` directory and
 conda env create -f conipher_env.yml
 ```
 
----
+
 ##### VERSION 2 - create conda environment manually
 
 1. Create the conda environment with the following libaries installed
