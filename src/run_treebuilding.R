@@ -87,7 +87,6 @@ sample_pyclone_tree <-      treebuilding_run(sample_input_list = input_list
                                                   , adjust_noisy_clusters_prop = adjust_noisy_clusters_prop
                                                   , min_ccf = min_ccf
                                                   , min_cluster_size = min_cluster_size
-                                                  , plotting = TRUE
                                                   , run.multi.trees = run.multi.trees
 )
 
@@ -154,7 +153,7 @@ if(!is.na(sample_pyclone_tree$graph_pyclone[1]))
   write.table(cloneproportionInfoDF, file = cloneproportionInfoFile, row.names = FALSE, quote = FALSE, sep = "\t")
 
   ### writing output muttable - similar to input
-  input_table <- input_table %>% rename(originalCLUSTER = CLUSTER)
+  input_table <- input_table %>% dplyr::rename(originalCLUSTER = CLUSTER)
   if (is.null(nrow(sample_pyclone_tree$merge_clusters))) {
     input_table <- input_table %>% mutate(treeCLUSTER = originalCLUSTER)
   } else {
