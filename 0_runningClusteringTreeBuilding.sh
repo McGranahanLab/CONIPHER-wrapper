@@ -26,7 +26,7 @@ Rscript ${scriptDir}run_clustering.R \
 --input_tsv ${inputTSV} \
 --working_dir ${clusteringDir} \
 --pyclone_version sc_nosciclone \
---nProcs 2
+--nProcs 1
 
 Rscript ${scriptDir}run_treebuilding.R \
 --input_tsv ${clusteringDir}${case_id}".SCoutput.CLEAN.tsv" \
