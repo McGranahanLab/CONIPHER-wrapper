@@ -7,6 +7,12 @@ This is a README detailing how to run both mutation clustering and phylogenetic 
 --- 
 ### Setup
 
+Clone the github repo using the following command from your terminal:
+```
+git clone https://github.com/McGranahanLab/CONIPHER-wrapper/
+```
+
+
 To create the conda enrivonment needed to run CONIPHER clustering and tree building with one wrapper script, follow the steps below. Our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). Please refer to our manuscript for further details of the method.
 
 1. Create a conda environment with correct libaries installed
@@ -59,7 +65,12 @@ conda deactivate
 ### Quickstart
 #### Running CONIPHER clustering + tree building
 
-We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, run the following command in your terminal:
+We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first enter the directory 
+```
+cd CONIPHER-wrapper
+```
+
+Then, run the following command in your terminal:
 
 ```
 sh 0_runningClusteringTreeBuilding.sh
