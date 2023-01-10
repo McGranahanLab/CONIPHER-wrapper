@@ -5,8 +5,8 @@
 
 case_id="CRUKTOY001"
 scriptDir=`pwd`"/src/"
-inputTSV="data/input_tsv.tsv"
-outDir="data/results"
+inputTSV=`pwd`"/data/input_tsv.tsv"
+outDir=`pwd`"/data/results"
 
 
 ############################################################### Running clustering and treebuilding
