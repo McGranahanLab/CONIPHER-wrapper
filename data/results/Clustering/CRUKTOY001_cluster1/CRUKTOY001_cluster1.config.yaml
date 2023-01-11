@@ -1,0 +1,57 @@
+num_iters: 10000
+
+base_measure_params:
+  alpha: 1
+  beta: 1
+
+concentration:
+  value: 1.0
+  
+  prior:
+    shape: 1.0
+    rate: 0.001
+
+density: pyclone_beta_binomial
+
+beta_binomial_precision_params:
+  value: 1000
+
+  prior:
+    shape: 1.0
+    rate: 0.0001
+
+  proposal:
+    precision: 0.01
+
+working_dir: /Users/grigork/Documents/Tx421/treeBuilding/rpackage/CONIPHER-wrapper/data/results/Clustering//CRUKTOY001_cluster1/
+
+trace_dir: trace
+
+samples:
+init_method: connected
+
+samples:
+  CRUKTOY001_S1:
+    mutations_file: CRUKTOY001_S1.yaml
+
+    tumour_content:
+      value: 0.5
+
+    error_rate: 0.001
+
+  CRUKTOY001_S2:
+    mutations_file: CRUKTOY001_S2.yaml
+
+    tumour_content:
+      value: 0.5
+
+    error_rate: 0.001
+
+  CRUKTOY001_S3:
+    mutations_file: CRUKTOY001_S3.yaml
+
+    tumour_content:
+      value: 0.5
+
+    error_rate: 0.001
+

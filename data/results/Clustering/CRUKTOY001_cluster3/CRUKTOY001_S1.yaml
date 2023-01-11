@@ -1,0 +1,41 @@
+mutations:
+- id: CRUKTOY001:10:6062:T
+  ref_counts: 98
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 2
+- id: CRUKTOY001:11:3900:A
+  ref_counts: 97
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 3
+- id: CRUKTOY001:21:3695:C
+  ref_counts: 98
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 2
+- id: CRUKTOY001:8:4371:T
+  ref_counts: 98
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 2
+- id: CRUKTOY001:1:1011:A
+  ref_counts: 98
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 2

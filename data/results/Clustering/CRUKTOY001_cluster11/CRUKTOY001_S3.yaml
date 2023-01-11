@@ -1,0 +1,65 @@
+mutations:
+- id: CRUKTOY001:6:3597:G
+  ref_counts: 36
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 64
+- id: CRUKTOY001:15:1915:C
+  ref_counts: 53
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 47
+- id: CRUKTOY001:13:2995:C
+  ref_counts: 52
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 48
+- id: CRUKTOY001:19:713:A
+  ref_counts: 45
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 55
+- id: CRUKTOY001:9:418:A
+  ref_counts: 48
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 52
+- id: CRUKTOY001:20:9888:G
+  ref_counts: 52
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 48
+- id: CRUKTOY001:22:4166:G
+  ref_counts: 49
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 51
+- id: CRUKTOY001:16:4792:C
+  ref_counts: 55
+  states:
+  - g_n: AA
+    g_r: AA
+    g_v: BB
+    prior_weight: 1
+  var_counts: 45
