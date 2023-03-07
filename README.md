@@ -67,9 +67,10 @@ conda deactivate
 ### Quickstart
 #### Running CONIPHER clustering + tree building
 
-We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first ensure you are in the `CONIPHER-wrapper` folder on your terminal, then run the following command:
+We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first ensure you are in the `CONIPHER-wrapper` folder on your terminal, then enter the conda environment and run the clustering+treebuilding wrapper bash script as follows:
 
 ```
+source activate conipher
 sh 0_runningClusteringTreeBuilding.sh
 ```
 
