@@ -2,7 +2,7 @@
 
 ## CONIPHER clustering and tree building wrapper
 
-This is a README detailing how to run both mutation clustering and phylogenetic tree building using CONIPHER (COrrecting Noise In PHylogenetic Evaluation and Reconstruction). NOTE: our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER).
+This is a README detailing how to run both mutation clustering and phylogenetic tree building using CONIPHER (COrrecting Noise In PHylogenetic Evaluation and Reconstruction). NOTE: our R package for CONIPHER tree building is available for download [here](https://github.com/McGranahanLab/CONIPHER). For full details of all the inputs and expected outputs for CONIPHER clustering and tree building, refer to our protocol (https://doi.org/10.21203/rs.3.pex-2158/v1).
 
 --- 
 ### Setup
@@ -67,9 +67,10 @@ conda deactivate
 ### Quickstart
 #### Running CONIPHER clustering + tree building
 
-We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first ensure you are in the `CONIPHER-wrapper` folder on your terminal, then run the following command:
+We provide a wrapper bash script to run CONIPHER clustering and tree building end-to-end. To run this from the conda environment set up as above on the example case CRUKTOY001 provided, first ensure you are in the `CONIPHER-wrapper` folder on your terminal, then enter the conda environment and run the clustering+treebuilding wrapper bash script as follows:
 
 ```
+source activate conipher
 sh 0_runningClusteringTreeBuilding.sh
 ```
 
