@@ -1,12 +1,12 @@
-######################################################################################################################
-# This script is designed to estimate the cancer cell fraction using PyClone
-######################################################################################################################
+#################################################
+### Wrapper script to run CONIPHER clustering ###
+#################################################
 
-cat('\n======== RUNNING PYCLONE SIMPLE CLUSTERING ===========\n')
+cat("\n======== RUNNING PYCLONE SIMPLE CLUSTERING ===========\n")
 
-####################################################################################################### Load libraries
-######################################################################################################################
-cat('\nLoading required packages\n')
+################################## Load libraries
+#################################################
+cat("\nLoading required packages\n")
 
 suppressPackageStartupMessages(library(compiler))
 suppressPackageStartupMessages(library(parallel))
@@ -20,8 +20,8 @@ suppressPackageStartupMessages(library(optparse))
 suppressPackageStartupMessages(library(tidyverse))
 options(expressions = 10000)
 
-######################################################################################################## Optpars setup
-######################################################################################################################
+################################### Optpars setup
+#################################################
 option_list = list(
   # required input:
   make_option(c("-c", "--case_id"), type="character", default=NULL, 
@@ -44,7 +44,7 @@ option_list = list(
   make_option(c("--only_truncal_subclonal_copy_correction"), type="logical", default="TRUE", 
               help="should only truncal subclonal copy number correction be used", metavar="character"),
 
-  make_option(c("--pyclone_ccf"), type="character", default="pyclone", 
+  make_option(c("--pyclone_ccf"), type="character", default="pyclone",
               help="if pyclone original is used, should the phyloCCF be calculated, or simply the pyclone version [pyclone or phyloCCF]", metavar="character"),
   
 
@@ -82,9 +82,9 @@ opt              <- parse_args(opt_parser)
 
 print(opt)
 
-
 cat(opt$input_tsv)
-# DIRECTORIES ####
+##################################### Directories
+#################################################
 cat('\nSetting up working Directories')
 if (!file.exists(opt$working_dir)) {
   dir.create(opt$working_dir, recursive = TRUE)
@@ -94,12 +94,13 @@ setwd(opt$working_dir)
 if (substr(opt$working_dir, nchar(opt$working_dir), nchar(opt$working_dir)) != '/') opt$working_dir <- paste0(opt$working_dir, '/')
 
 
-# PARAMETER SETTING ####
-cat('\nSetting parameters')
-# set parameters used for script (these are currently hardcoded)
+############################### Parameter setting
+#################################################
+cat("\nSetting parameters")
 
+# Set parameters used for script
 template.config.yaml <- paste0(opt$script_dir, "/", opt$pyclone_yaml)
-driver.cat           <- unlist(strsplit(opt$driver_filter,split=","))
+driver.cat           <- unlist(strsplit(opt$driver_filter, split = ","))
 min.cluster.size     <- opt$min_cluster_size
 burn_in              <- opt$burn_in
 new.dir              <- opt$working_dir
@@ -117,19 +118,17 @@ scriptDir            <- opt$script_dir
 source(paste0(scriptDir, "TRACERxHelperFunctions.R"))
 require(KernSmooth)
 
+###################################### Run script
+#################################################
 
-
-###### Run script #####################
-
-
-cat('\nPyclone simple clustering analysis of the following tumour case:\n')
+cat("\nCONIPHER clustering analysis of the following tumour case:\n")
 print(patient)
-cat('\n')
+cat("\n")
 
 
-if( !file.exists(new.dir))
+if(!file.exists(new.dir))
 {
-  if( !dir.create(new.dir, recursive = TRUE) )
+  if(!dir.create(new.dir, recursive = TRUE) )
   {
     stop("Unable to create root directory.\n")
   }
@@ -141,17 +140,17 @@ input_tsv_loc <- opt$input_tsv
 cat(opt$working_dir)
 
 
-if( !file.exists(input_tsv_loc))
+if(!file.exists(input_tsv_loc))
 {
   cat(input_tsv_loc)
   stop("Unable to find mut.table.loc.\n")
-  
 }
 
+# Read input table
 input_tsv <- read.delim(input_tsv_loc, sep = "\t", stringsAsFactors = FALSE, header = TRUE, fill = TRUE, quote = "")
 input_tsv[, "key"] <- paste(paste0("chr", input_tsv[, "CHR"]), input_tsv[, "POS"], input_tsv[, "REF"], input_tsv[, "ALT"], sep = ":")
 
-if (sum(grepl("Use.For.Plots", colnames(input_tsv))) == 2) {
+if (sum(grepl("is_INDEL", colnames(input_tsv))) == 1) { # KG edit 04/03/2022: changing "Use.For.Plots" columns to one column: "is_INDEL"
   ### create input needed for pyclone
   mut.table <- data.frame(key = input_tsv[, "key"],
                           chr = input_tsv[, "CHR"],
@@ -160,8 +159,8 @@ if (sum(grepl("Use.For.Plots", colnames(input_tsv))) == 2) {
                           ref = input_tsv[, "REF"],
                           var = input_tsv[, "ALT"],
                           is_SNV = TRUE,
-                          Use.For.Plots = input_tsv[, "Use.For.Plots"],
-                          Use.For.Plots.Indel = input_tsv[, "Use.For.Plots.Indel"],
+                          Use.For.Plots = !input_tsv[, "is_INDEL"],
+                          Use.For.Plots.Indel = input_tsv[, "is_INDEL"],
                           stringsAsFactors = FALSE)
 
   mut.table <- mut.table %>% 
@@ -193,8 +192,8 @@ if (sum(grepl("Use.For.Plots", colnames(input_tsv))) == 2) {
 
   mut.table <- mut.table %>% 
     full_join(input_tsv %>% 
-      select(key, SAMPLE, REF_COUNT, VAR_COUNT, DEPTH) %>% 
-      dplyr::rename(cov = DEPTH, ref_count = REF_COUNT, var_count = VAR_COUNT) %>% 
+      select(key, SAMPLE, REF_COUNT, VAR_COUNT, DEPTH) %>%
+      dplyr::rename(cov = DEPTH, ref_count = REF_COUNT, var_count = VAR_COUNT) %>%
       dplyr::mutate(VAF = var_count / cov * 100) %>%
         tidyr::pivot_wider(names_from = SAMPLE, values_from = c(cov, ref_count, var_count, VAF), names_glue = "{SAMPLE}.{.value}"), by = "key") %>%
     rowwise() %>%
@@ -209,8 +208,6 @@ if (sum(grepl("Use.For.Plots", colnames(input_tsv))) == 2) {
 
   mut.table <- data.frame(mut.table, stringsAsFactors = FALSE)
 }
-
-print('test6')
 
 if(TRUE%in%grepl('CN_A',colnames(input_tsv))) # KG:  delete - this shouldnt be needed if we have provided correct input columns.
 {
@@ -240,12 +237,13 @@ regions <- unique(seg.mat.copy$SampleID)
 regions <- gsub("-","\\.",regions)
 print(regions)
 
-        mut.table      <- mut.table[mut.table$chr%in%1:22,,drop=FALSE]
-        seg.mat.copy   <- seg.mat.copy[seg.mat.copy$chr%in%1:22,,drop=FALSE]
+# Only consider chromosomes 1-22
+mut.table      <- mut.table[mut.table$chr%in%1:22,,drop=FALSE]
+seg.mat.copy   <- seg.mat.copy[seg.mat.copy$chr%in%1:22,,drop=FALSE]
 pat<-patient
 
 
-  regions.to.use  <- unique(seg.mat.copy$Sample)
+regions.to.use  <- unique(seg.mat.copy$Sample)
 
 mut.table$mutation_id  <- paste(sample,mut.table$chr,mut.table$start,mut.table$ref,sep=":")
 mut.table              <- mut.table[order(mut.table$max.VAF,decreasing=TRUE),]
@@ -543,9 +541,6 @@ for (mut in muts_to_consider)
             phylo.region.list[[region]][phylo.region.list[[region]]$mutation_id%in%mut_to_revert$mutation_id,]$expected.VAF <- expVAF
             
           }
-          
-          
-          
         }
       }
       if(opt$only_truncal_subclonal_copy_correction%in%FALSE)
@@ -951,8 +946,6 @@ if(length(muts.to.remove)>1)
   pdf(paste(new.dir, sample, ".removedCPN.muts.pdf",sep=""),width=8,height = 8)
   clusters.to.plot <- most.likely.cluster[mut.table[mut.table$cpn.remove%in%TRUE,'mutation_id']]
   
-  
-  
   {
     # let's only plot a cluster if it has removed musted    
     
@@ -968,8 +961,7 @@ if(length(muts.to.remove)>1)
     
     for (region in regions.to.use)
     {
-      
-      
+       
       region.earlyLate  <- phylo.region.list[[region]]                                             
       region.earlyLate  <- region.earlyLate[!is.na(region.earlyLate$phyloCCF),]
       region.earlyLate  <- region.earlyLate[region.earlyLate$mutation_id%in%muts.to.remove,,drop=FALSE]
