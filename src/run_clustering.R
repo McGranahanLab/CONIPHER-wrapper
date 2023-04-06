@@ -150,7 +150,7 @@ if(!file.exists(input_tsv_loc))
 input_tsv <- read.delim(input_tsv_loc, sep = "\t", stringsAsFactors = FALSE, header = TRUE, fill = TRUE, quote = "")
 input_tsv[, "key"] <- paste(paste0("chr", input_tsv[, "CHR"]), input_tsv[, "POS"], input_tsv[, "REF"], input_tsv[, "ALT"], sep = ":")
 
-if (sum(grepl("is_INDEL", colnames(input_tsv))) == 1) { # KG edit 04/03/2022: changing "Use.For.Plots" columns to one column: "is_INDEL"
+if (sum(grepl("MUT_TYPE", colnames(input_tsv))) == 1) { # KG edit 04/03/2022: changing "Use.For.Plots" columns to one column: "MUT_TYPE"
   ### create input needed for pyclone
   mut.table <- data.frame(key = input_tsv[, "key"],
                           chr = input_tsv[, "CHR"],
@@ -159,8 +159,8 @@ if (sum(grepl("is_INDEL", colnames(input_tsv))) == 1) { # KG edit 04/03/2022: ch
                           ref = input_tsv[, "REF"],
                           var = input_tsv[, "ALT"],
                           is_SNV = TRUE,
-                          Use.For.Plots = !input_tsv[, "is_INDEL"],
-                          Use.For.Plots.Indel = input_tsv[, "is_INDEL"],
+                          Use.For.Plots = (input_tsv[, "MUT_TYPE"] == "SNV"),
+                          Use.For.Plots.Indel = (input_tsv[, "MUT_TYPE"] == "INDEL"),
                           stringsAsFactors = FALSE)
 
   mut.table <- mut.table %>% 
