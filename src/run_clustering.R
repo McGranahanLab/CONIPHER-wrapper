@@ -22,10 +22,10 @@ options(expressions = 10000)
 
 ################################### Optpars setup
 #################################################
-option_list = list(
+option_list <-  list(
   # required input:
-  make_option(c("-c", "--case_id"), type="character", default=NULL, 
-              help="Tumour case ID", metavar="character"),
+  make_option(c("-c", "--case_id"), type = "character", default = NULL,
+              help = "Tumour case ID", metavar = "character"),
 
   make_option(c("-w", "--working_dir"), type="character", default=NULL, 
               help="Working directory", metavar="character"),
@@ -42,11 +42,7 @@ option_list = list(
               help="should subclonal copy number correction be used", metavar="character"),
   
   make_option(c("--only_truncal_subclonal_copy_correction"), type="logical", default="TRUE", 
-              help="should only truncal subclonal copy number correction be used", metavar="character"),
-
-  make_option(c("--pyclone_ccf"), type="character", default="pyclone",
-              help="if pyclone original is used, should the phyloCCF be calculated, or simply the pyclone version [pyclone or phyloCCF]", metavar="character"),
-  
+              help="should only truncal subclonal copy number correction be used", metavar="character"),  
 
   make_option(c("-y", "--pyclone_yaml"), type="character", default="template.config.yaml", 
               help="A template yaml file for pyclone", metavar="character"),
