@@ -306,7 +306,7 @@ findSimpleClustersWithSciClone <- function(phylo.region.list, mut.table, minCCF 
     return(SmallClusters)
 }
 
-RunPyCloneWithSimpleClusters <- function(clusterName, patientID, SmallClusters, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter") {
+RunPyCloneWithSimpleClusters <- function(clusterName, patientID, SmallClusters, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, pyclone.burnin = 1000, pyclone.seed = 1024, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter") {
   
     ### give a name to the sample
     PyCloneRunName <- paste0(patientID, "_cluster", clusterName)
@@ -387,7 +387,9 @@ RunPyCloneWithSimpleClusters <- function(clusterName, patientID, SmallClusters, 
     ### next, run pyclone
     cmd <- paste0(PyClone
                 , " run_analysis --config_file "
-                , pyclone.config.yaml)
+                , pyclone.config.yaml
+                , " --seed "
+                , pyclone.seed)
     cat('\n')
 
     if (run.pyclone) {
@@ -403,7 +405,8 @@ RunPyCloneWithSimpleClusters <- function(clusterName, patientID, SmallClusters, 
                , " --table_type old_style --out_file "
                , sample.results
                , " --max_clusters ", min(max(1, floor(length(SmallClusters[[clusterName]]$MutationsWithCluster) / 5)), 10)
-               , " --burnin 1000")
+               , " --burnin "
+               , pyclone.burnin)
     cat('\n')
 
     if(run.pyclone) {

@@ -69,6 +69,8 @@ option_list <-  list(
               help="what filter to use for drivers", metavar="character"),
   make_option(c("--burn_in"), type="integer", default=1000, 
               help="burn-in for DP clustering", metavar="character"),
+ make_option(c("--seed"), type="integer", default=1024, 
+              help="seed for pyclone", metavar="character"),
   make_option(c("--nProcs"), type = "integer", default = 1,
               help="Number of cores allocated to run script in parallel", metavar="character")
 )
@@ -99,6 +101,7 @@ template.config.yaml <- paste0(opt$script_dir, "/", opt$pyclone_yaml)
 driver.cat           <- unlist(strsplit(opt$driver_filter, split = ","))
 min.cluster.size     <- opt$min_cluster_size
 burn_in              <- opt$burn_in
+pyclone_seed         <- opt$seed
 new.dir              <- opt$working_dir
 patient              <- opt$case_id
 sample               <- patient
@@ -712,7 +715,7 @@ tmp <- mclapply(simpleClusterList, function(x) {
   if (length(x$MutationsWithCluster) < 5) {
     CreateOutputNoPyCloneRun(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir)
   } else {
-    RunPyCloneWithSimpleClusters(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter")
+    RunPyCloneWithSimpleClusters(clusterName = x$clusterID, patientID = sample, SmallClusters = simpleClusterList, patientDirToUse = new.dir, yamlConfigLoc = template.config.yaml, pyclone.burnin = burn_in, pyclone.seed = pyclone_seed, run.pyclone = TRUE, pyclone.module = "PyClone/0.12.3-foss-2016b-Python-2.7.12-tkinter")
   }
 }, mc.cores = no_cores)
 # }
