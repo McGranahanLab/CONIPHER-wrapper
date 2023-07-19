@@ -6,22 +6,20 @@
 case_id="CRUKTOY001"
 scriptDir=`pwd`"/src/"
 inputTSV=`pwd`"/data/input_tsv.tsv"
-outDir=`pwd`"/data/results"
+outDir=`pwd`"/data/results/"
+
 
 ###################################################################### Running treebuilding wrapper
 ###################################################################################################
 
-source activate conipher
-
-treeDir=${outDir}"/TreeBuilding/"
-
-mkdir -p ${treeDir}
+conda activate conipher
 
 Rscript ${scriptDir}run_treebuilding.R \
---input_tsv ${inputTSV} \
---out_dir ${treeDir} \
---script_dir ${scriptDir} \
+--input_tsv_loc ${inputTSV} \
+--out_dir ${outDir} \
 --prefix CRUK
+
+conda deactivate
 
 
 ############################################################################################### End
