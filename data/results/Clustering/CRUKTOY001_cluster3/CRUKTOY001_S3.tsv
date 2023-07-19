@@ -1,6 +1,0 @@
-mutation_id	ref_counts	var_counts	normal_cn	minor_cn	major_cn	major_raw	minor_raw	region	Reference_Base	Alternate_Base	fracA	nMaj_A	nMin_A	fracB	nMaj_B	nMin_B	fracC	nMaj_C	nMin_C	fracD	nMaj_D	nMin_D
-CRUKTOY001:10:6062:T	67	33	2	0	2	1	1	CRUKTOY001_S3	T	C	1	1	1	0	1	1	NA	NA	NA	NA	NA	NA
-CRUKTOY001:11:3900:A	67	33	2	0	2	1	1	CRUKTOY001_S3	A	A	1	1	1	0	1	1	NA	NA	NA	NA	NA	NA
-CRUKTOY001:21:3695:C	78	22	2	0	2	1	1	CRUKTOY001_S3	C	T	1	1	1	0	1	1	NA	NA	NA	NA	NA	NA
-CRUKTOY001:8:4371:T	72	28	2	0	2	1	1	CRUKTOY001_S3	T	G	1	1	1	0	1	1	NA	NA	NA	NA	NA	NA
-CRUKTOY001:1:1011:A	73	27	2	0	2	1	1	CRUKTOY001_S3	A	A	1	1	1	0	1	1	NA	NA	NA	NA	NA	NA
