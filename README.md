@@ -42,7 +42,7 @@ We provide a wrapper bash script to run CONIPHER clustering and tree building en
 sh wrapper_conipher.sh
 ```
 
-If running CONIPHER wrapper on one individual tumour case, specify the case identifier, desired output directory, location of the input .tsv file within the ``wrapper_conipher.sh`` script.
+If running CONIPHER wrapper on one individual tumour case, specify the case identifier (``--case_id``), desired output directory (``--out_dir``), location of the input .tsv file (``--input_tsv_loc``) within the ``wrapper_conipher.sh`` script. If the user wishes to change additional parameters from their default values, these can be added into the Rscript command in the wrapper. For a full list of the possible parameters see our protocol.
 
 
 
